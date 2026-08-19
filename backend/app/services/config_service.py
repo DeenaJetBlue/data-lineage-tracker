@@ -1,12 +1,23 @@
 import csv
 import os
+from pathlib import Path
 from typing import Dict, Optional
 from app.models import TableConfig
 
 
 class ConfigService:
     def __init__(self, config_file_path: str):
-        self.config_file_path = config_file_path
+        path = Path(config_file_path)
+        if not path.is_absolute():
+            project_root = Path(__file__).resolve().parents[3]
+            backend_root = project_root / "backend"
+            candidates = (
+                Path.cwd() / path,
+                project_root / path,
+                backend_root / path,
+            )
+            path = next((candidate for candidate in candidates if candidate.exists()), path)
+        self.config_file_path = str(path)
         self.tables: Dict[str, TableConfig] = {}
         self.load_config()
 

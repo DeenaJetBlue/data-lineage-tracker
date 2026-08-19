@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pathlib import Path
 from typing import Optional
 
 
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
     config_file_path: str = "../ConfigurationFile.csv"
 
     class Config:
-        env_file = "../.env"
+        env_file = Path(__file__).resolve().parents[2] / ".env"
         case_sensitive = False
         extra = "ignore"
 
