@@ -1,0 +1,2 @@
+TableName,ADLSStorageRG,ADLSStorageName,ADLSContainerName,ADLSPath,ADFResourceGroup,ADFFactoryName,ADFPipelineName,DbtStageJobId,DbtStageAccountId,DbtStarJobId,DbtStarAccountId
+Aerodata,JB-RG-Analytics-Prd,jbedseastusprdsa,crew-cont-prd,temp.txt,jb-rg-analytics-prd,jb-analytics-eastus-prd-df,base__load_files_to_snowflake_sp_audit,70437463785258,1644,70437463791993,1644

@@ -1,0 +1,142 @@
+.lineage-flow-container {
+  margin: 2rem 0;
+}
+
+.flow-diagram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+  padding: 2rem;
+  background: white;
+  border-radius: 0.75rem;
+  border: 2px solid #e5e7eb;
+  min-height: 200px;
+}
+
+.flow-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.flow-node {
+  border: 3px solid #e5e7eb;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  min-width: 140px;
+  text-align: center;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.flow-node:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.node-icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.node-header {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.25rem;
+}
+
+.node-subtitle {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 0.75rem;
+}
+
+.status-indicator {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.flow-arrow {
+  font-size: 2rem;
+  color: #9ca3af;
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 300;
+}
+
+.flow-legend {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #4b5563;
+}
+
+.legend-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+@media (max-width: 1024px) {
+  .flow-diagram {
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  .flow-arrow {
+    transform: rotate(90deg);
+    margin: 0.5rem 0;
+  }
+
+  .flow-node {
+    min-width: 130px;
+  }
+}
+
+@media (max-width: 768px) {
+  .flow-diagram {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .flow-node {
+    min-width: 110px;
+    padding: 1rem;
+  }
+
+  .node-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .node-header {
+    font-size: 0.9rem;
+  }
+
+  .node-subtitle {
+    font-size: 0.75rem;
+  }
+
+  .flow-legend {
+    gap: 1rem;
+    font-size: 0.85rem;
+  }
+}
