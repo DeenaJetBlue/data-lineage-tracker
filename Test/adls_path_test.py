@@ -26,9 +26,9 @@ from azure.identity import ClientSecretCredential
 from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationError
 
 # Load environment variables from .env
-env_path = Path("backend/.env")
+env_path = Path(__file__).parent.parent / ".env"
 if not env_path.exists():
-    print("❌ Error: backend/.env not found!")
+    print("❌ Error: .env not found in project root!")
     sys.exit(1)
 
 load_dotenv(env_path)
@@ -39,7 +39,7 @@ ADLS_CLIENT_ID = os.getenv("ADLS_CLIENT_ID")
 ADLS_CLIENT_SECRET = os.getenv("ADLS_CLIENT_SECRET")
 
 if not all([ADLS_TENANT_ID, ADLS_CLIENT_ID, ADLS_CLIENT_SECRET]):
-    print("❌ Error: Missing required credentials in backend/.env")
+    print("❌ Error: Missing required credentials in .env")
     print("   Required: ADLS_TENANT_ID, ADLS_CLIENT_ID, ADLS_CLIENT_SECRET")
     sys.exit(1)
 
@@ -49,11 +49,11 @@ APPLICATION_ID = ADLS_CLIENT_ID
 def load_config(table_name: str = "Aerodata") -> dict:
     """Load configuration from ConfigurationFile.csv"""
     config_file = "ConfigurationFile.csv"
-    
+
     if not Path(config_file).exists():
         print(f"❌ Error: {config_file} not found!")
         return None
-    
+
     with open(config_file, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
@@ -68,7 +68,7 @@ def load_config(table_name: str = "Aerodata") -> dict:
                     'adf_factory_name': row.get('ADFFactoryName'),
                     'adf_pipeline': row.get('ADFPipelineName')
                 }
-    
+
     print(f"❌ Error: Table '{table_name}' not found in {config_file}")
     return None
 
@@ -109,17 +109,29 @@ def check_file_exists(storage_account: str, container_name: str, file_path: str)
         print(f"✅ Connected successfully with Service Principal!")
 
         file_system_client = service_client.get_file_system_client(file_system=container_name)
-        directory_client = file_system_client.get_directory_client(file_path)
 
         print(f"\n🔍 Checking if path exists...")
-        properties = directory_client.get_directory_properties()
 
-        print(f"\n✅ Path EXISTS!")
-        print(f"\n📊 Properties:")
-        print(f"   - Size: {properties.get('size', 0)} bytes")
-        print(f"   - Last Modified: {properties.get('last_modified', 'N/A')}")
-
-        return {"status": "exists", "message": "Path found in ADLS", "container": container_name, "path": file_path}
+        # Try to get file properties first
+        try:
+            file_client = file_system_client.get_file_client(file_path)
+            properties = file_client.get_file_properties()
+            print(f"\n✅ File EXISTS!")
+            print(f"\n📊 Properties:")
+            print(f"   - Size: {properties.size} bytes")
+            print(f"   - Last Modified: {properties.last_modified}")
+            return {"status": "exists", "message": "File found in ADLS", "container": container_name, "path": file_path, "type": "file"}
+        except ResourceNotFoundError:
+            # If file not found, try directory
+            try:
+                directory_client = file_system_client.get_directory_client(file_path)
+                properties = directory_client.get_directory_properties()
+                print(f"\n✅ Directory EXISTS!")
+                print(f"\n📊 Properties:")
+                print(f"   - Last Modified: {properties.last_modified}")
+                return {"status": "exists", "message": "Directory found in ADLS", "container": container_name, "path": file_path, "type": "directory"}
+            except ResourceNotFoundError:
+                raise
 
     except ResourceNotFoundError:
         print(f"\n⚠️  Path NOT FOUND")
@@ -129,7 +141,7 @@ def check_file_exists(storage_account: str, container_name: str, file_path: str)
         print(f"\n⚠️  Authentication Error")
         print(f"\n❌ Error: {error_message}")
         print(f"\n💡 Troubleshooting:")
-        print(f"   1. Verify credentials in backend/.env:")
+        print(f"   1. Verify credentials in .env:")
         print(f"      - ADLS_TENANT_ID")
         print(f"      - ADLS_CLIENT_ID")
         print(f"      - ADLS_CLIENT_SECRET")
@@ -190,3 +202,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+ 
