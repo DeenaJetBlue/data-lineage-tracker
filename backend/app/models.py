@@ -23,6 +23,7 @@ class ADLSNode(BaseModel):
     status: str = "unknown"
     last_modified: Optional[datetime] = None
     file_count: int = 0
+    file_size: Optional[int] = None
     error: Optional[str] = None
 
 
