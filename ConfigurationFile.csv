@@ -1,2 +1,2 @@
 TableName,ADLSStorageRG,ADLSStorageName,ADLSContainerName,ADLSPath,ADFResourceGroup,ADFFactoryName,ADFPipelineName,DbtStageJobId,DbtStageAccountId,DbtStarJobId,DbtStarAccountId
-Aerodata,jb-rg-eastus2-analytics-prd,jbsaeastus2analyticsprd,aerodata-cont,aerodata/2026/08/19/13/11/JBU_0021_KBOS_KDJT_3271_20260819_20260819125029.xml.gz,jb-rg-analytics-prd,jb-analytics-eastus-prd-df,base__load_files_to_snowflake_sp_audit,70437463785258,1644,70437463791993,1644
+Aerodata,jb-rg-eastus2-analytics-prd,jbsaeastus2analyticsprd,aerodata-cont,aerodata/2026/08/19/13/11/JBU_0021_KBOS_KDJT_3271_20260819_20260819125029_not.xml.gz,jb-rg-analytics-prd,jb-analytics-eastus-prd-df,base__load_files_to_snowflake_sp_audit,70437463785258,1644,70437463791993,1644
