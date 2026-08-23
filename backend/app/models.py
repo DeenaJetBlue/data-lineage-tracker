@@ -15,6 +15,7 @@ class TableConfig(BaseModel):
     dbt_stage_account_id: str
     dbt_star_job_id: str
     dbt_star_account_id: str
+    fivetran_connection_id: Optional[str] = None
 
 
 class ADLSNode(BaseModel):
@@ -63,6 +64,27 @@ class DBTNode(BaseModel):
         return str(value)
 
 
+class FivetranSyncRecord(BaseModel):
+    sync_id: str
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    records_processed: Optional[int] = None
+    error_message: Optional[str] = None
+
+
+class FivetranNode(BaseModel):
+    name: str
+    connection_id: str
+    connection_name: str
+    service: str = "unknown"
+    status: str = "unknown"
+    last_sync: Optional[datetime] = None
+    last_sync_status: Optional[str] = None
+    sync_history: List[FivetranSyncRecord] = []
+    error: Optional[str] = None
+
+
 class LineageEdge(BaseModel):
     source: str
     target: str
@@ -76,6 +98,7 @@ class LineageData(BaseModel):
     snowflake_raw: Optional[ADFNode] = None
     dbt_stage: Optional[DBTNode] = None
     dbt_star: Optional[DBTNode] = None
+    fivetran: Optional[FivetranNode] = None
     edges: List[LineageEdge] = []
     timestamp: datetime
 

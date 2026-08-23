@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     dbt_environment_id: int
     dbt_access_url: str
 
+    fivetran_api_key: Optional[str] = None
+    fivetran_api_secret: Optional[str] = None
+    fivetran_system_key: Optional[str] = None
+
     adls_account_name: Optional[str] = None
     adls_account_key: Optional[str] = None
 
