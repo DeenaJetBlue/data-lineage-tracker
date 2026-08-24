@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     fivetran_api_secret: Optional[str] = None
     fivetran_system_key: Optional[str] = None
 
+    webadmin_server: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+
     adls_account_name: Optional[str] = None
     adls_account_key: Optional[str] = None
 

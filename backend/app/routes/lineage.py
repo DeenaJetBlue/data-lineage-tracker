@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from app.models import LineageData, LineageResponse, LineageEdge
-from app.services import ConfigService, ADLSService, ADFService, DBTService, FivetranService
+from app.services import ConfigService, ADLSService, ADFService, DBTService, FivetranService, MOVEitService
 from app.config import settings
 
 router = APIRouter(prefix="/api", tags=["lineage"])
@@ -12,6 +12,7 @@ adls_service = ADLSService()
 adf_service = ADFService()
 dbt_service = DBTService()
 fivetran_service = FivetranService()
+moveit_service = MOVEitService()
 
 
 @router.get("/tables")
@@ -30,7 +31,7 @@ async def get_all_tables():
 
 
 @router.get("/lineage/{table_name}")
-async def get_table_lineage(table_name: str, include_fivetran: bool = False):
+async def get_table_lineage(table_name: str, include_fivetran: bool = False, include_moveit: bool = False):
     try:
         # Get table configuration
         print(f"\n📖 Loading configuration for table: {table_name}")
@@ -84,6 +85,13 @@ async def get_table_lineage(table_name: str, include_fivetran: bool = False):
             fivetran_node = await fivetran_service.get_connection_by_id(table_config.fivetran_connection_id)
             print(f"      Status: {fivetran_node.status} | Syncs: {len(fivetran_node.sync_history)}")
 
+        # Fetch MOVEit data if enabled
+        moveit_node = None
+        if include_moveit and table_config.moveit_task_id:
+            print(f"   6️⃣ Querying MOVEit Task...")
+            moveit_node = await moveit_service.get_task_by_id(table_config.moveit_task_id)
+            print(f"      Status: {moveit_node.status} | Logs: {len(moveit_node.logs)}")
+
         print(f"\n✅ All layers queried successfully!")
 
         # Create edges for lineage
@@ -96,6 +104,9 @@ async def get_table_lineage(table_name: str, include_fivetran: bool = False):
         if fivetran_node:
             edges.insert(0, LineageEdge(source="Fivetran", target="ADLS", label="Ingest to Lake"))
 
+        if moveit_node:
+            edges.insert(0, LineageEdge(source="MOVEit", target="ADLS", label="Transfer to Lake"))
+
         # Build response
         lineage = LineageData(
             table_name=table_name,
@@ -104,6 +115,7 @@ async def get_table_lineage(table_name: str, include_fivetran: bool = False):
             dbt_stage=dbt_stage_node,
             dbt_star=dbt_star_node,
             fivetran=fivetran_node,
+            moveit=moveit_node,
             edges=edges,
             timestamp=datetime.now()
         )
@@ -242,6 +254,118 @@ async def get_table_lineage_with_fivetran(table_name: str, fivetran_connection_i
             dbt_stage=dbt_stage_node,
             dbt_star=dbt_star_node,
             fivetran=fivetran_node,
+            edges=edges,
+            timestamp=datetime.now()
+        )
+
+        print(f"\n📊 Lineage data prepared and ready to return")
+
+        return LineageResponse(
+            success=True,
+            data=lineage
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"\n❌ Error: {str(e)}")
+        return LineageResponse(
+            success=False,
+            error=str(e)
+        )
+
+
+@router.get("/moveit/task/{task_id}")
+async def get_moveit_task(task_id: str):
+    try:
+        print(f"\n📥 Fetching MOVEit task: {task_id}")
+        moveit_node = await moveit_service.get_task_by_id(task_id)
+
+        return {
+            "success": True,
+            "data": moveit_node
+        }
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/lineage/{table_name}/with-moveit")
+async def get_table_lineage_with_moveit(table_name: str, moveit_task_id: str = None):
+    try:
+        # Get table configuration
+        print(f"\n📖 Loading configuration for table: {table_name}")
+        table_config = config_service.get_table_config(table_name)
+        if not table_config:
+            print(f"❌ Table '{table_name}' not found in configuration")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Table '{table_name}' not found in configuration"
+            )
+
+        print(f"✅ Configuration loaded successfully!")
+        print(f"\n📋 Configuration Details:")
+        print(f"   Table Name: {table_config.table_name}")
+        print(f"   ADLS Storage: {table_config.adls_storage_name}")
+        print(f"   ADF Pipeline: {table_config.adf_pipeline}")
+        print(f"   DBT Stage Job: {table_config.dbt_stage_job_id}")
+        print(f"   DBT Star Job: {table_config.dbt_star_job_id}")
+        if table_config.moveit_task_id or moveit_task_id:
+            print(f"   MOVEit Task: {table_config.moveit_task_id or moveit_task_id}")
+
+        # Fetch data from each layer
+        print(f"\n📥 Fetching lineage data from all layers...")
+
+        print(f"   1️⃣ Querying ADLS...")
+        adls_node = await adls_service.check_file_exists(table_config.adls_path, table_config.adls_storage_rg, table_config.adls_storage_name)
+        print(f"      Status: {adls_node.status}")
+
+        print(f"   2️⃣ Querying ADF Pipeline...")
+        adf_node = await adf_service.get_latest_pipeline_run(table_config.adf_pipeline, table_config.adf_resource_group, table_config.adf_factory_name)
+        print(f"      Status: {adf_node.status} | Run ID: {adf_node.run_id}")
+
+        print(f"   3️⃣ Querying DBT Stage Layer...")
+        dbt_stage_node = await dbt_service.get_latest_job_run(
+            table_config.dbt_stage_account_id,
+            table_config.dbt_stage_job_id
+        )
+        print(f"      Status: {dbt_stage_node.status} | Job Name: {dbt_stage_node.job_name}")
+
+        print(f"   4️⃣ Querying DBT Star Layer...")
+        dbt_star_node = await dbt_service.get_latest_job_run(
+            table_config.dbt_star_account_id,
+            table_config.dbt_star_job_id
+        )
+        print(f"      Status: {dbt_star_node.status} | Job Name: {dbt_star_node.job_name}")
+
+        # Fetch MOVEit data if task ID is provided
+        moveit_node = None
+        task_to_use = moveit_task_id or table_config.moveit_task_id
+        if task_to_use:
+            print(f"   5️⃣ Querying MOVEit Task...")
+            moveit_node = await moveit_service.get_task_by_id(task_to_use)
+            print(f"      Status: {moveit_node.status} | Logs: {len(moveit_node.logs)}")
+
+        print(f"\n✅ All layers queried successfully!")
+
+        # Create edges for lineage
+        edges = [
+            LineageEdge(source="ADLS", target="ADF", label="Load to Raw"),
+            LineageEdge(source="ADF", target="DBT_Stage", label="Transform to STG"),
+            LineageEdge(source="DBT_Stage", target="DBT_Star", label="Transform to Star")
+        ]
+
+        if moveit_node:
+            edges.append(LineageEdge(source="MOVEit", target="ADLS", label="Transfer to Lake"))
+
+        # Build response
+        lineage = LineageData(
+            table_name=table_name,
+            adls=adls_node,
+            adf=adf_node,
+            dbt_stage=dbt_stage_node,
+            dbt_star=dbt_star_node,
+            moveit=moveit_node,
             edges=edges,
             timestamp=datetime.now()
         )

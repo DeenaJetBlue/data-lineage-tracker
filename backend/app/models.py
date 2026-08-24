@@ -16,6 +16,7 @@ class TableConfig(BaseModel):
     dbt_star_job_id: str
     dbt_star_account_id: str
     fivetran_connection_id: Optional[str] = None
+    moveit_task_id: Optional[str] = None
 
 
 class ADLSNode(BaseModel):
@@ -85,6 +86,25 @@ class FivetranNode(BaseModel):
     error: Optional[str] = None
 
 
+class MOVEitLogEntry(BaseModel):
+    timestamp: Optional[datetime] = None
+    level: Optional[str] = None
+    message: Optional[str] = None
+    details: Optional[dict] = None
+
+
+class MOVEitNode(BaseModel):
+    name: str
+    task_id: str
+    task_name: str
+    status: str = "unknown"
+    created: Optional[datetime] = None
+    modified: Optional[datetime] = None
+    logs: List[MOVEitLogEntry] = []
+    total_logs: int = 0
+    error: Optional[str] = None
+
+
 class LineageEdge(BaseModel):
     source: str
     target: str
@@ -99,6 +119,7 @@ class LineageData(BaseModel):
     dbt_stage: Optional[DBTNode] = None
     dbt_star: Optional[DBTNode] = None
     fivetran: Optional[FivetranNode] = None
+    moveit: Optional[MOVEitNode] = None
     edges: List[LineageEdge] = []
     timestamp: datetime
 
