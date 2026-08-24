@@ -155,7 +155,16 @@ ADLS_ACCOUNT_KEY=your_account_key
 # Server
 SERVER_PORT=8000
 CONFIG_FILE_PATH=../ConfigurationFile.csv
+
+# MOVEit Automation test script
+WEBADMIN_SERVER=your_moveit_server_host
+USERNAME=your_moveit_username
+PASSWORD=your_moveit_password
 ```
+
+The MOVEit test script also accepts `MOVEIT_SERVER`, `MOVEIT_USERNAME`, and
+`MOVEIT_PASSWORD`. The MOVEit-specific names are recommended on Windows because
+`USERNAME` may already be set to the signed-in Windows account.
 
 ## API Endpoints
 

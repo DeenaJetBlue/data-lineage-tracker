@@ -21,6 +21,7 @@ import json
 import warnings
 from urllib3.exceptions import InsecureRequestWarning
 from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 warnings.simplefilter('ignore', InsecureRequestWarning)
 
@@ -32,11 +33,13 @@ except ImportError:
     print("    pip install requests")
     sys.exit(1)
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path=ENV_PATH)
+DOTENV_VALUES = dotenv_values(ENV_PATH)
 
-WEBADMIN_SERVER = os.getenv("WEBADMIN_SERVER")
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+WEBADMIN_SERVER = os.getenv("MOVEIT_SERVER") or os.getenv("WEBADMIN_SERVER") or DOTENV_VALUES.get("WEBADMIN_SERVER")
+USERNAME = os.getenv("MOVEIT_USERNAME") or DOTENV_VALUES.get("MOVEIT_USERNAME") or DOTENV_VALUES.get("USERNAME") or os.getenv("USERNAME")
+PASSWORD = os.getenv("MOVEIT_PASSWORD") or DOTENV_VALUES.get("MOVEIT_PASSWORD") or DOTENV_VALUES.get("PASSWORD") or os.getenv("PASSWORD")
 
 BASE_URL = f"https://{WEBADMIN_SERVER}/api/v1"
 
@@ -53,10 +56,12 @@ def get_access_token():
     }
     data = {
         "grant_type": "password",
+        "server_host": WEBADMIN_SERVER,
         "username": USERNAME,
         "password": PASSWORD
     }
 
+    response = None
     try:
         print(f"DEBUG: POST request to {url}")
         response = requests.post(url, headers=headers, data=data, verify=False, timeout=10)
@@ -73,6 +78,8 @@ def get_access_token():
         return None
     except requests.exceptions.RequestException as e:
         print(f"✗ Error requesting token: {e}")
+        if response is not None and response.text:
+            print(f"  API response: {response.text}")
         return None
 
 def list_tasks(access_token):
