@@ -160,6 +160,8 @@ CONFIG_FILE_PATH=../ConfigurationFile.csv
 WEBADMIN_SERVER=your_moveit_server_host
 USERNAME=your_moveit_username
 PASSWORD=your_moveit_password
+# Optional: use the MOVEit DNS name when the service requires SNI/virtual-host routing
+MOVEIT_BASE_URL=https://your_moveit_server_host/api/v1
 ```
 
 The MOVEit test script also accepts `MOVEIT_SERVER`, `MOVEIT_USERNAME`, and

@@ -19,6 +19,9 @@ import os
 import requests
 import json
 import warnings
+import subprocess
+from urllib.parse import urlparse
+from urllib.parse import urlencode
 from urllib3.exceptions import InsecureRequestWarning
 from dotenv import load_dotenv
 from dotenv import dotenv_values
@@ -40,11 +43,65 @@ DOTENV_VALUES = dotenv_values(ENV_PATH)
 WEBADMIN_SERVER = os.getenv("MOVEIT_SERVER") or os.getenv("WEBADMIN_SERVER") or DOTENV_VALUES.get("WEBADMIN_SERVER")
 USERNAME = os.getenv("MOVEIT_USERNAME") or DOTENV_VALUES.get("MOVEIT_USERNAME") or DOTENV_VALUES.get("USERNAME") or os.getenv("USERNAME")
 PASSWORD = os.getenv("MOVEIT_PASSWORD") or DOTENV_VALUES.get("MOVEIT_PASSWORD") or DOTENV_VALUES.get("PASSWORD") or os.getenv("PASSWORD")
+MOVEIT_BASE_URL = os.getenv("MOVEIT_BASE_URL") or DOTENV_VALUES.get("MOVEIT_BASE_URL")
 
 # Target Task ID
 TARGET_TASK_ID = "243149144"
 
-BASE_URL = f"https://{WEBADMIN_SERVER}/api/v1"
+BASE_URL = (MOVEIT_BASE_URL or f"https://{WEBADMIN_SERVER}/api/v1").rstrip("/")
+SERVER_HOST = urlparse(BASE_URL).hostname or WEBADMIN_SERVER
+
+
+class CurlResponse:
+    def __init__(self, status_code, text):
+        self.status_code = status_code
+        self.text = text
+
+    def json(self):
+        return json.loads(self.text)
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.exceptions.HTTPError(
+                f"{self.status_code} Server Error", response=self
+            )
+
+
+def curl_request(method, url, headers=None, data=None, params=None):
+    """Use Windows Schannel, which supports this server's TLS renegotiation."""
+    if params:
+        url = f"{url}?{urlencode(params)}"
+
+    def quote(value):
+        return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    config = [
+        f"url = {quote(url)}",
+        f"request = {method}",
+        "insecure",
+        "silent",
+        "show-error",
+        'write-out = "\\n__MOVEIT_HTTP_STATUS__:%{http_code}"',
+    ]
+    for name, value in (headers or {}).items():
+        config.append(f"header = {quote(f'{name}: {value}')}")
+    for name, value in (data or {}).items():
+        config.append(f"data-urlencode = {quote(f'{name}={value}')}")
+
+    result = subprocess.run(
+        ["curl.exe", "--config", "-"],
+        input="\n".join(config),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise requests.exceptions.ConnectionError(result.stderr.strip())
+
+    body, marker, status = result.stdout.rpartition("\n__MOVEIT_HTTP_STATUS__:")
+    if not marker:
+        raise requests.exceptions.ConnectionError("curl returned no HTTP status")
+    return CurlResponse(int(status), body)
 
 print("=" * 80)
 print("MOVEit Automation API - Task Logs Viewer")
@@ -63,7 +120,7 @@ def get_access_token():
     }
     data = {
         "grant_type": "password",
-        "server_host": WEBADMIN_SERVER,
+        "server_host": SERVER_HOST,
         "username": USERNAME,
         "password": PASSWORD
     }
@@ -73,7 +130,7 @@ def get_access_token():
         print("[1] Authenticating with MOVEit API...")
         print("-" * 80)
         print(f"POST: {url}")
-        response = requests.post(url, headers=headers, data=data, verify=False, timeout=10)
+        response = curl_request("POST", url, headers=headers, data=data)
         print(f"Status: {response.status_code}")
         response.raise_for_status()
         token_data = response.json()
@@ -86,7 +143,8 @@ def get_access_token():
         return None
     except requests.exceptions.ConnectionError as e:
         print(f"✗ Connection error: {e}")
-        print(f"   Check if {WEBADMIN_SERVER} is reachable (VDI connection required)")
+        print(f"   TCP connectivity exists, but the server closed the TLS connection.")
+        print(f"   Use the MOVEit DNS hostname in MOVEIT_BASE_URL if the IP was supplied.")
         return None
     except requests.exceptions.RequestException as e:
         print(f"✗ Error requesting token: {e}")
@@ -106,7 +164,7 @@ def get_task_details(access_token, task_id):
         print(f"\n[2] Fetching Task Details...")
         print("-" * 80)
         print(f"GET: {url}")
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        response = curl_request("GET", url, headers=headers)
         print(f"Status: {response.status_code}")
 
         if response.status_code == 200:
@@ -142,7 +200,7 @@ def get_task_logs(access_token, task_id, page=1, per_page=50):
         print("-" * 80)
         print(f"GET: {url}")
         print(f"Parameters: page={page}, perPage={per_page}")
-        response = requests.get(url, headers=headers, params=params, verify=False, timeout=10)
+        response = curl_request("GET", url, headers=headers, params=params)
         print(f"Status: {response.status_code}")
 
         if response.status_code == 200:
