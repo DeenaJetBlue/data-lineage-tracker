@@ -101,7 +101,19 @@ def fetch_hub_jobs(token):
 
         if response.status_code == 200:
             jobs_data = response.json()
-            jobs = jobs_data.get("jobs", []) if isinstance(jobs_data, dict) else jobs_data
+
+            # Handle two response formats:
+            # 1. List of job objects: [{'name': '...', 'state': '...'}, ...]
+            # 2. Dict with job names as keys: {'job_name': {'state': '...', 'latency': ...}, ...}
+            if isinstance(jobs_data, list):
+                jobs = jobs_data
+            elif isinstance(jobs_data, dict) and "jobs" in jobs_data:
+                jobs = jobs_data.get("jobs", [])
+            elif isinstance(jobs_data, dict):
+                # Convert dict format to list format
+                jobs = [{"name": name, **details} for name, details in jobs_data.items()]
+            else:
+                jobs = []
 
             if not jobs:
                 print("❌ No jobs found!")
