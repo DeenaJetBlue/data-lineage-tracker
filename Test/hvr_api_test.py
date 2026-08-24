@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env
-load_dotenv()
+ENV_PATH = os.path.join(os.path.dirname(__file__), "..", ".env")
+load_dotenv(ENV_PATH)
 
 # HVR Configuration from .env
 HVR_URL = os.getenv("HVR_URL")
@@ -64,7 +65,12 @@ def get_access_token():
 
     except requests.exceptions.RequestException as e:
         print(f"❌ Connection error: {e}")
-        print("⚠️  Make sure you have VDI connection to the HVR server")
+        if "NameResolutionError" in str(e) or "Failed to resolve" in str(e):
+            print(f"⚠️  HVR host '{HVR_URL}' cannot be resolved by Windows DNS.")
+            print("   Set HVR_URL in .env to the HVR DNS name or IP address provided by your HVR administrator.")
+            print("   A VDI/VPN connection may also be required for the internal DNS record.")
+        else:
+            print("⚠️  Make sure you have VDI connection to the HVR server")
         return None
 
 
@@ -91,6 +97,7 @@ def fetch_hub_jobs(token):
         response = session.get(
             jobs_url, headers=headers, params=query_params, timeout=30
         )
+        print(response.json())
 
         if response.status_code == 200:
             jobs_data = response.json()
