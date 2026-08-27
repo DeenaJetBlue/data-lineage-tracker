@@ -1,12 +1,23 @@
 import os
 import requests
 import json
+import subprocess
+from urllib.parse import urlencode
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 import urllib3
 
 # Suppress SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class CurlResponse:
+    def __init__(self, status_code: int, text: str):
+        self.status_code = status_code
+        self.text = text
+
+    def json(self) -> Dict[str, Any]:
+        return json.loads(self.text)
 
 # Load environment variables
 load_dotenv()
@@ -27,6 +38,32 @@ class MOVEitTransferAPI:
             self.server = f"https://{self.server}"
         self.base_url = f"{self.server}/api/v1"
 
+    @staticmethod
+    def _request(method: str, url: str, headers: Optional[Dict[str, str]] = None,
+                 data: Optional[Dict[str, Any]] = None,
+                 params: Optional[Dict[str, Any]] = None) -> CurlResponse:
+        if params:
+            url = f"{url}?{urlencode(params)}"
+
+        command = [
+            "curl.exe", "--silent", "--show-error", "--insecure",
+            "--request", method, url,
+            "--write-out", "\n__HTTP_STATUS__:%{http_code}"
+        ]
+        for name, value in (headers or {}).items():
+            command.extend(["--header", f"{name}: {value}"])
+        for name, value in (data or {}).items():
+            command.extend(["--data-urlencode", f"{name}={value}"])
+
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode:
+            raise requests.exceptions.ConnectionError(result.stderr.strip())
+
+        body, marker, status = result.stdout.rpartition("\n__HTTP_STATUS__:")
+        if not marker:
+            raise requests.exceptions.ConnectionError("curl returned no HTTP status")
+        return CurlResponse(int(status), body)
+
     def get_access_token(self) -> bool:
         """Request an access token from MOVEit Transfer API"""
         try:
@@ -38,12 +75,7 @@ class MOVEitTransferAPI:
                 "password": self.password
             }
 
-            response = requests.post(
-                token_url,
-                data=payload,
-                verify=False,  # Ignore SSL certificate warnings
-                timeout=10
-            )
+            response = self._request("POST", token_url, data=payload)
 
             if response.status_code == 200:
                 token_data = response.json()
@@ -83,13 +115,7 @@ class MOVEitTransferAPI:
                 "sortDirection": sort_direction
             }
 
-            response = requests.get(
-                files_url,
-                headers=headers,
-                params=params,
-                verify=False,
-                timeout=10
-            )
+            response = self._request("GET", files_url, headers=headers, params=params)
 
             if response.status_code == 200:
                 files_data = response.json()
@@ -121,12 +147,7 @@ class MOVEitTransferAPI:
                 "refresh_token": self.refresh_token
             }
 
-            response = requests.post(
-                token_url,
-                data=payload,
-                verify=False,
-                timeout=10
-            )
+            response = self._request("POST", token_url, data=payload)
 
             if response.status_code == 200:
                 token_data = response.json()
@@ -156,12 +177,7 @@ class MOVEitTransferAPI:
                 "Content-Type": "application/json"
             }
 
-            response = requests.get(
-                user_url,
-                headers=headers,
-                verify=False,
-                timeout=10
-            )
+            response = self._request("GET", user_url, headers=headers)
 
             if response.status_code == 200:
                 user_data = response.json()
