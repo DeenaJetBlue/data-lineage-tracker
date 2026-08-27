@@ -18,10 +18,14 @@ class MOVEitTransferAPI:
         self.password = os.getenv('TPASSWORD')
         self.access_token = None
         self.refresh_token = None
-        self.base_url = f"https://{self.server}/api/v1"
 
         if not all([self.server, self.username, self.password]):
             raise ValueError("Missing MOVEit Transfer credentials in .env file")
+
+        self.server = self.server.strip().rstrip('/')
+        if not self.server.startswith(('http://', 'https://')):
+            self.server = f"https://{self.server}"
+        self.base_url = f"{self.server}/api/v1"
 
     def get_access_token(self) -> bool:
         """Request an access token from MOVEit Transfer API"""
