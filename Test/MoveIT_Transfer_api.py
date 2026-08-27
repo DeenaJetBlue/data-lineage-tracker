@@ -218,11 +218,38 @@ def main():
 
         print()
 
-        # Step 3: Get files
-        print("Step 3: Retrieving files...")
-        files_data = api.get_files(per_page=10)
+        # Step 3: Get files sorted by uploadstamp (recent to oldest)
+        print("Step 3: Retrieving files (sorted by uploadstamp - recent to oldest)...")
+        files_data = api.get_files(per_page=50, sort_field="uploadstamp", sort_direction="desc")
         if files_data:
-            # Pretty print the response
+            # Extract and display file details in readable format
+            files_list = files_data.get('items', [])
+            total_count = files_data.get('totalCount', len(files_list))
+
+            print(f"\nTotal files: {total_count}")
+            print(f"Files retrieved: {len(files_list)}\n")
+            print(f"{'File Name':<50} {'Size':<15} {'Upload Timestamp':<25}")
+            print("-" * 90)
+
+            for file in files_list:
+                name = file.get('name', 'N/A')[:50]
+                size = file.get('size', 0)
+                upload_stamp = file.get('uploadstamp', 'N/A')
+
+                # Format size in human-readable format
+                if size >= 1024**3:
+                    size_str = f"{size / (1024**3):.2f} GB"
+                elif size >= 1024**2:
+                    size_str = f"{size / (1024**2):.2f} MB"
+                elif size >= 1024:
+                    size_str = f"{size / 1024:.2f} KB"
+                else:
+                    size_str = f"{size} B"
+
+                print(f"{name:<50} {size_str:<15} {str(upload_stamp):<25}")
+
+            # Also output raw JSON for complete details
+            print("\n\nComplete JSON Response:")
             print(json.dumps(files_data, indent=2))
 
     except Exception as e:
