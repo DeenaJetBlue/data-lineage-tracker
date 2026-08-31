@@ -82,7 +82,7 @@ def check_file_and_folder_updates(file_path, hours=24):
     """
     Combined function to:
     1. Check if a particular file exists
-    2. Count updated files in the folder containing that file
+    2. Count updated files two directories up from the file location
 
     Args:
         file_path (str): Full path to the file to check
@@ -92,7 +92,8 @@ def check_file_and_folder_updates(file_path, hours=24):
         dict: Combined results
     """
     file_exists = check_file_exists(file_path)
-    folder_path = os.path.dirname(file_path)
+    # Go back two folders from the file location
+    folder_path = os.path.dirname(os.path.dirname(file_path))
     folder_updates = count_updated_files(folder_path, hours) if file_exists else None
 
     return {
@@ -112,21 +113,15 @@ if __name__ == "__main__":
     print(f"File exists: {file_exists}")
     print()
 
-    # Example 2: Count files updated in last 24 hours
-    nas_folder_path = r"\\NAS_SERVER\shared_folder\data"
-    updates = count_updated_files(nas_folder_path, hours=24)
-
-    if updates:
-        print(f"Total files in folder: {updates['total_files']}")
-        print(f"Files updated in last 24 hours: {updates['updated_files_count']}")
-        print("\nUpdated files:")
-        for file_info in updates['updated_files']:
-            print(f"  - {file_info['file']} (Modified: {file_info['modified_time']})")
-    print()
-
-    # Example 3: Combined check - file existence + folder updates
+    # Example 2: Check file + get updated files two folders back
     result = check_file_and_folder_updates(nas_file_path, hours=24)
+    print(f"File path: {result['file_path']}")
     print(f"File exists: {result['file_exists']}")
-    if result['folder_updates']:
-        print(f"Folder: {result['folder_path']}")
-        print(f"Updated files: {result['folder_updates']['updated_files_count']}/{result['folder_updates']['total_files']}")
+
+    if result['file_exists'] and result['folder_updates']:
+        print(f"\nChecking folder (2 levels up): {result['folder_path']}")
+        print(f"Total files in folder: {result['folder_updates']['total_files']}")
+        print(f"Files updated in last 24 hours: {result['folder_updates']['updated_files_count']}")
+        print("\nUpdated files:")
+        for file_info in result['folder_updates']['updated_files']:
+            print(f"  - {file_info['file']} (Modified: {file_info['modified_time']})")
