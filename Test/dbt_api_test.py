@@ -17,9 +17,9 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 # Load environment variables from backend/.env
-env_path = Path("backend/.env")
+env_path = Path(".env")
 if not env_path.exists():
-    print("❌ Error: backend/.env not found!")
+    print("❌ Error: .env not found!")
     sys.exit(1)
 
 load_dotenv(env_path)
