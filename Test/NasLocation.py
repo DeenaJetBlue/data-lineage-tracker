@@ -145,7 +145,8 @@ def check_file_and_folder_updates(file_path, hours=24):
 
 if __name__ == "__main__":
     # Example: Check file + get files updated AFTER reference file time
-    nas_file_path = r"\\NAS_SERVER\shared_folder\data\myfile.csv"
+    nas_file_path = r"\\shares.jetblue.com\Apps\snowflake\prd\Home\A220_FlightLink_ACARS\filename.txt"  # Replace with your actual file path
+
 
     result = check_file_and_folder_updates(nas_file_path, hours=24)
 

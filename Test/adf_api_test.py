@@ -22,9 +22,9 @@ from azure.identity import ClientSecretCredential
 from azure.mgmt.datafactory import DataFactoryManagementClient
 
 # Load environment variables from backend/.env
-env_path = Path("backend/.env")
+env_path = Path(".env")
 if not env_path.exists():
-    print("❌ Error: backend/.env not found!")
+    print("❌ Error: .env not found!")
     sys.exit(1)
 
 load_dotenv(env_path)
