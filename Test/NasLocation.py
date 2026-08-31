@@ -105,7 +105,7 @@ def check_file_and_folder_updates(file_path, hours=24):
     Combined function to:
     1. Check if a particular file exists
     2. Get reference file's modification time
-    3. Count updated files two directories up from the file location that were modified AFTER the reference file
+    3. Count updated files in the same folder that were modified AFTER the reference file
 
     Args:
         file_path (str): Full path to the file to check
@@ -128,8 +128,8 @@ def check_file_and_folder_updates(file_path, hours=24):
         except Exception as e:
             print(f"Error getting file modification time: {e}")
 
-    # Go back two folders from the file location
-    folder_path = os.path.dirname(os.path.dirname(file_path))
+    # Get the folder containing the file
+    folder_path = os.path.dirname(file_path)
     folder_updates = count_updated_files(folder_path, reference_file_time, hours) if file_exists else None
 
     return {
