@@ -21,7 +21,7 @@ def check_file_exists(file_path):
         return False
 
 
-def count_updated_files(folder_path, reference_file_time=None, hours=24, debug=False):
+def count_updated_files(folder_path, reference_file_time=None, hours=24):
     """
     Count how many files in a folder have been updated after a reference file's modification time.
 
@@ -30,7 +30,6 @@ def count_updated_files(folder_path, reference_file_time=None, hours=24, debug=F
         reference_file_time (float): Reference modification time (unix timestamp).
                                      Only files modified after this time will be counted.
         hours (int): Number of hours to look back (default: 24 hours) - used if reference_file_time is None
-        debug (bool): Print all files being checked for debugging
 
     Returns:
         dict: Dictionary containing:
@@ -46,25 +45,21 @@ def count_updated_files(folder_path, reference_file_time=None, hours=24, debug=F
         # Use reference file time if provided, otherwise use hours threshold
         if reference_file_time is not None:
             time_threshold = reference_file_time
-            print(f"Using reference file time: {datetime.fromtimestamp(reference_file_time).strftime('%Y-%m-%d %H:%M:%S')}")
         else:
             current_time = time.time()
             time_threshold = current_time - (hours * 3600)  # Convert hours to seconds
-            print(f"Using time threshold (last {hours} hours): {datetime.fromtimestamp(time_threshold).strftime('%Y-%m-%d %H:%M:%S')}")
 
         total_files = 0
         updated_files = []
         max_depth = 0
 
-        print(f"\nScanning folder: {folder_path}")
-        print("=" * 80)
+        print(f"Scanning folder: {folder_path}")
 
         # Walk through the folder with depth tracking
         for root, dirs, files in os.walk(folder_path):
             # Calculate depth to prevent infinite loops
             depth = root.replace(folder_path, '').count(os.sep)
             if depth > 10:  # Safety limit
-                print(f"WARNING: Depth limit reached at {root}. Stopping scan in this branch.")
                 continue
 
             max_depth = max(max_depth, depth)
@@ -73,32 +68,26 @@ def count_updated_files(folder_path, reference_file_time=None, hours=24, debug=F
                 total_files += 1
                 file_path = os.path.join(root, file)
 
+                # Print progress every 1000 files
+                if total_files % 1000 == 0:
+                    print(f"{total_files} files checked...")
+
                 try:
                     # Get file modification time
                     mod_time = os.path.getmtime(file_path)
-                    mod_datetime = datetime.fromtimestamp(mod_time)
-
-                    if debug:
-                        print(f"[{total_files}] Checking: {file_path}")
-                        print(f"    Modified: {mod_datetime.strftime('%Y-%m-%d %H:%M:%S')}")
 
                     # Check if file was modified after the reference time
                     if mod_time > time_threshold:
+                        mod_datetime = datetime.fromtimestamp(mod_time)
                         updated_files.append({
                             'file': file,
                             'path': file_path,
                             'modified_time': mod_datetime.strftime('%Y-%m-%d %H:%M:%S')
                         })
-                        if debug:
-                            print(f"    ✓ UPDATED (after reference time)")
-                    else:
-                        if debug:
-                            print(f"    ✗ Not updated (before reference time)")
 
                 except Exception as e:
-                    print(f"Error processing file {file_path}: {e}")
+                    pass
 
-        print("=" * 80)
         return {
             'total_files': total_files,
             'updated_files_count': len(updated_files),
@@ -111,7 +100,7 @@ def count_updated_files(folder_path, reference_file_time=None, hours=24, debug=F
         return None
 
 
-def check_file_and_folder_updates(file_path, hours=24, debug=False):
+def check_file_and_folder_updates(file_path, hours=24):
     """
     Combined function to:
     1. Check if a particular file exists
@@ -121,7 +110,6 @@ def check_file_and_folder_updates(file_path, hours=24, debug=False):
     Args:
         file_path (str): Full path to the file to check
         hours (int): Fallback hours to look back if file doesn't exist
-        debug (bool): Print all files being checked for debugging
 
     Returns:
         dict: Combined results
@@ -134,14 +122,15 @@ def check_file_and_folder_updates(file_path, hours=24, debug=False):
             # Get the modification time of the reference file
             reference_file_time = os.path.getmtime(file_path)
             ref_time_str = datetime.fromtimestamp(reference_file_time).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"\nReference file: {file_path}")
-            print(f"Reference file modified time: {ref_time_str}\n")
+            print(f"Particular file exists: {file_path}")
+            print(f"Modified time: {ref_time_str}")
+            print()
         except Exception as e:
             print(f"Error getting file modification time: {e}")
 
     # Go back two folders from the file location
     folder_path = os.path.dirname(os.path.dirname(file_path))
-    folder_updates = count_updated_files(folder_path, reference_file_time, hours, debug=debug) if file_exists else None
+    folder_updates = count_updated_files(folder_path, reference_file_time, hours) if file_exists else None
 
     return {
         'file_path': file_path,
@@ -158,26 +147,19 @@ if __name__ == "__main__":
     # Example: Check file + get files updated AFTER reference file time
     nas_file_path = r"\\NAS_SERVER\shared_folder\data\myfile.csv"
 
-    # Set debug=True to see all files being checked
-    result = check_file_and_folder_updates(nas_file_path, hours=24, debug=True)
-
-    print(f"\n{'='*80}")
-    print("SUMMARY")
-    print(f"{'='*80}")
-    print(f"File path: {result['file_path']}")
-    print(f"File exists: {result['file_exists']}")
+    result = check_file_and_folder_updates(nas_file_path, hours=24)
 
     if result['file_exists'] and result['folder_updates']:
-        print(f"\nFolder checked (2 levels up): {result['folder_path']}")
-        print(f"Total files in folder: {result['folder_updates']['total_files']}")
-        print(f"Files updated AFTER reference file: {result['folder_updates']['updated_files_count']}")
-        print(f"Maximum folder depth scanned: {result['folder_updates']['max_folder_depth']}")
+        print(f"{result['folder_updates']['updated_files_count']} files found after the updated time")
+        print()
 
         if result['folder_updates']['updated_files']:
-            print("\nUpdated files:")
+            print("Updated files:")
             for i, file_info in enumerate(result['folder_updates']['updated_files'], 1):
                 print(f"  {i}. {file_info['file']}")
                 print(f"     Path: {file_info['path']}")
                 print(f"     Modified: {file_info['modified_time']}")
     elif result['file_exists'] and not result['folder_updates']:
         print("Could not scan folder for updates.")
+    else:
+        print("File does not exist.")
