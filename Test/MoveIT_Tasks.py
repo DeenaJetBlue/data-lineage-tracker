@@ -1,259 +1,140 @@
 import os
-import requests
+import sys
 import json
-import subprocess
-from urllib.parse import urlencode
+import requests
+from pathlib import Path
 from dotenv import load_dotenv
-from typing import Optional, Dict, Any
 import urllib3
 
-# Suppress SSL warnings for self-signed certificates
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+env_path = Path(".env")
+if not env_path.exists():
+    print("Error: .env not found!")
+    sys.exit(1)
 
-class CurlResponse:
-    def __init__(self, status_code: int, text: str):
-        self.status_code = status_code
-        self.text = text
+load_dotenv(env_path)
 
-    def json(self) -> Dict[str, Any]:
-        return json.loads(self.text)
+TRANSFER_SERVER = os.getenv("TRANSFER_SERVER")
+TUSERNAME = os.getenv("TUSERNAME")
+TPASSWORD = os.getenv("TPASSWORD")
 
-# Load environment variables
-load_dotenv()
+if not all([TRANSFER_SERVER, TUSERNAME, TPASSWORD]):
+    print("Error: MOVEit Transfer credentials not configured in .env")
+    sys.exit(1)
 
-class MOVEitTransferAPI:
-    def __init__(self):
-        self.server = os.getenv('TRANSFER_SERVER')
-        self.username = os.getenv('TUSERNAME')
-        self.password = os.getenv('TPASSWORD')
-        self.access_token = None
-        self.refresh_token = None
-
-        if not all([self.server, self.username, self.password]):
-            raise ValueError("Missing MOVEit Transfer credentials in .env file")
-
-        self.server = self.server.strip().rstrip('/')
-        if not self.server.startswith(('http://', 'https://')):
-            self.server = f"https://{self.server}"
-        self.base_url = f"{self.server}/api/v1"
-
-    @staticmethod
-    def _request(method: str, url: str, headers: Optional[Dict[str, str]] = None,
-                 data: Optional[Dict[str, Any]] = None,
-                 params: Optional[Dict[str, Any]] = None) -> CurlResponse:
-        if params:
-            url = f"{url}?{urlencode(params)}"
-
-        command = [
-            "curl.exe", "--silent", "--show-error", "--insecure",
-            "--request", method, url,
-            "--write-out", "\n__HTTP_STATUS__:%{http_code}"
-        ]
-        for name, value in (headers or {}).items():
-            command.extend(["--header", f"{name}: {value}"])
-        for name, value in (data or {}).items():
-            command.extend(["--data-urlencode", f"{name}={value}"])
-
-        result = subprocess.run(command, capture_output=True, text=True, check=False)
-        if result.returncode:
-            raise requests.exceptions.ConnectionError(result.stderr.strip())
-
-        body, marker, status = result.stdout.rpartition("\n__HTTP_STATUS__:")
-        if not marker:
-            raise requests.exceptions.ConnectionError("curl returned no HTTP status")
-        return CurlResponse(int(status), body)
-
-    def get_access_token(self) -> bool:
-        """Request an access token from MOVEit Transfer API"""
-        try:
-            token_url = f"{self.base_url}/token"
-
-            payload = {
-                "grant_type": "password",
-                "username": self.username,
-                "password": self.password
-            }
-
-            response = self._request("POST", token_url, data=payload)
-
-            if response.status_code == 200:
-                token_data = response.json()
-                self.access_token = token_data.get('access_token')
-                self.refresh_token = token_data.get('refresh_token')
-                print(f"✓ Access token obtained successfully")
-                print(f"  Token expires in: {token_data.get('expires_in')} seconds")
-                return True
-            else:
-                print(f"✗ Failed to get access token: {response.status_code}")
-                print(f"  Response: {response.text}")
-                return False
-
-        except Exception as e:
-            print(f"✗ Error requesting access token: {str(e)}")
-            return False
-
-    def get_files(self, page: int = 1, per_page: int = 25,
-                  sort_field: str = "path", sort_direction: str = "asc") -> Optional[Dict[str, Any]]:
-        """Get list of files current user can view"""
-        if not self.access_token:
-            print("✗ Not authenticated. Call get_access_token() first.")
-            return None
-
-        try:
-            files_url = f"{self.base_url}/files"
-
-            headers = {
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json"
-            }
-
-            params = {
-                "page": page,
-                "perPage": per_page,
-                "sortField": sort_field,
-                "sortDirection": sort_direction
-            }
-
-            response = self._request("GET", files_url, headers=headers, params=params)
-
-            if response.status_code == 200:
-                files_data = response.json()
-                print(f"✓ Retrieved files successfully")
-                return files_data
-            elif response.status_code == 403:
-                print(f"✗ Forbidden: You don't have permission to access files")
-                return None
-            else:
-                print(f"✗ Failed to retrieve files: {response.status_code}")
-                print(f"  Response: {response.text}")
-                return None
-
-        except Exception as e:
-            print(f"✗ Error retrieving files: {str(e)}")
-            return None
-
-    def refresh_access_token(self) -> bool:
-        """Refresh the access token using refresh token"""
-        if not self.refresh_token:
-            print("✗ No refresh token available. Request a new access token.")
-            return False
-
-        try:
-            token_url = f"{self.base_url}/token"
-
-            payload = {
-                "grant_type": "refresh_token",
-                "refresh_token": self.refresh_token
-            }
-
-            response = self._request("POST", token_url, data=payload)
-
-            if response.status_code == 200:
-                token_data = response.json()
-                self.access_token = token_data.get('access_token')
-                self.refresh_token = token_data.get('refresh_token')
-                print(f"✓ Token refreshed successfully")
-                return True
-            else:
-                print(f"✗ Failed to refresh token: {response.status_code}")
-                return False
-
-        except Exception as e:
-            print(f"✗ Error refreshing token: {str(e)}")
-            return False
-
-    def get_user_info(self) -> Optional[Dict[str, Any]]:
-        """Get information about the current authenticated user"""
-        if not self.access_token:
-            print("✗ Not authenticated. Call get_access_token() first.")
-            return None
-
-        try:
-            user_url = f"{self.base_url}/users/self"
-
-            headers = {
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json"
-            }
-
-            response = self._request("GET", user_url, headers=headers)
-
-            if response.status_code == 200:
-                user_data = response.json()
-                print(f"✓ Retrieved user info successfully")
-                return user_data
-            else:
-                print(f"✗ Failed to retrieve user info: {response.status_code}")
-                print(f"  Response: {response.text}")
-                return None
-
-        except Exception as e:
-            print(f"✗ Error retrieving user info: {str(e)}")
-            return None
+CONFIG_FILE = ".config"
+if not Path(CONFIG_FILE).exists():
+    print(f"Error: {CONFIG_FILE} not found!")
+    sys.exit(1)
 
 
-def main():
-    """Example usage of MOVEit Transfer API"""
+def read_config():
+    config = {}
+    with open(CONFIG_FILE, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                config[key.strip()] = value.strip()
+
+    return {'task_id': config.get('MoveIT_TaskID')}
+
+
+def get_access_token():
+    """Get access token from MOVEit Transfer API"""
+    server = TRANSFER_SERVER.strip().rstrip('/')
+    if not server.startswith(('http://', 'https://')):
+        server = f"https://{server}"
+
+    token_url = f"{server}/api/v1/token"
+
     try:
-        # Initialize API client
-        api = MOVEitTransferAPI()
-        print(f"Connected to MOVEit Transfer Server: {api.server}\n")
+        response = requests.post(
+            token_url,
+            data={
+                "grant_type": "password",
+                "username": TUSERNAME,
+                "password": TPASSWORD
+            },
+            verify=False,
+            timeout=30
+        )
 
-        # Step 1: Get access token
-        print("Step 1: Requesting access token...")
-        if not api.get_access_token():
-            print("Failed to authenticate. Exiting.")
-            return
-
-        print()
-
-        # Step 2: Get user information
-        print("Step 2: Retrieving user information...")
-        user_info = api.get_user_info()
-        if user_info:
-            print(f"  User ID: {user_info.get('id')}")
-            print(f"  User Name: {user_info.get('name')}")
-            print(f"  User Directory: {user_info.get('directory')}")
-
-        print()
-
-        # Step 3: Get files sorted by uploadstamp (recent to oldest)
-        print("Step 3: Retrieving files (sorted by uploadstamp - recent to oldest)...")
-        files_data = api.get_files(per_page=50, sort_field="uploadstamp", sort_direction="desc")
-        if files_data:
-            # Extract and display file details in readable format
-            files_list = files_data.get('items', [])
-            total_count = files_data.get('totalCount', len(files_list))
-
-            print(f"\nTotal files: {total_count}")
-            print(f"Files retrieved: {len(files_list)}\n")
-            print(f"{'File Name':<50} {'Size':<15} {'Upload Timestamp':<25}")
-            print("-" * 90)
-
-            for file in files_list:
-                name = file.get('name', 'N/A')[:50]
-                size = file.get('size', 0)
-                upload_stamp = file.get('uploadstamp', 'N/A')
-
-                # Format size in human-readable format
-                if size >= 1024**3:
-                    size_str = f"{size / (1024**3):.2f} GB"
-                elif size >= 1024**2:
-                    size_str = f"{size / (1024**2):.2f} MB"
-                elif size >= 1024:
-                    size_str = f"{size / 1024:.2f} KB"
-                else:
-                    size_str = f"{size} B"
-
-                print(f"{name:<50} {size_str:<15} {str(upload_stamp):<25}")
-
-            # Also output raw JSON for complete details
-            print("\n\nComplete JSON Response:")
-            print(json.dumps(files_data, indent=2))
+        if response.status_code == 200:
+            return response.json().get('access_token')
+        else:
+            print(f"Error: Failed to get access token (Status: {response.status_code})")
+            return None
 
     except Exception as e:
         print(f"Error: {str(e)}")
+        return None
+
+
+def get_task_runs(task_id):
+    """Get latest runs for a MOVEit task"""
+    server = TRANSFER_SERVER.strip().rstrip('/')
+    if not server.startswith(('http://', 'https://')):
+        server = f"https://{server}"
+
+    access_token = get_access_token()
+    if not access_token:
+        print("Error: Could not authenticate")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    # Get task run history
+    url = f"{server}/api/v1/tasks/{task_id}/history"
+    params = {"limit": 1}
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            verify=False,
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            return data
+        else:
+            print(f"Error: Failed to get task runs (Status: {response.status_code})")
+            return None
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return None
+
+
+def main():
+    config = read_config()
+
+    if not config['task_id']:
+        print("Error: MoveIT_TaskID not configured in .config")
+        sys.exit(1)
+
+    task_id = config['task_id']
+
+    print("MOVEit Task Configuration:")
+    print(json.dumps(config, indent=2))
+
+    print(f"\nFetching latest run for task {task_id}...")
+
+    task_runs = get_task_runs(task_id)
+
+    if not task_runs:
+        print("Error: Could not retrieve task runs")
+        sys.exit(1)
+
+    print("\n=== LATEST TASK RUN DETAILS ===")
+    print(json.dumps(task_runs, indent=2))
 
 
 if __name__ == "__main__":
