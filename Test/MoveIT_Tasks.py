@@ -13,11 +13,22 @@ if not env_path.exists():
     print("Error: .env not found!")
     sys.exit(1)
 
-load_dotenv(env_path)
+def read_env():
+    """Read .env file manually to preserve backslashes in usernames"""
+    env_vars = {}
+    with open(env_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    env_vars[key.strip()] = value.strip()
+    return env_vars
 
-WEBADMIN_SERVER = os.getenv("WEBADMIN_SERVER")
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+env_vars = read_env()
+WEBADMIN_SERVER = env_vars.get("WEBADMIN_SERVER")
+USERNAME = env_vars.get("USERNAME")
+PASSWORD = env_vars.get("PASSWORD")
 
 if not all([WEBADMIN_SERVER, USERNAME, PASSWORD]):
     print("Error: MOVEit credentials not configured in .env")
@@ -52,6 +63,7 @@ def get_access_token():
 
     print(f"DEBUG: Connecting to: {token_url}")
     print(f"DEBUG: Username: {USERNAME}")
+    print(f"DEBUG: Username length: {len(USERNAME)}")
 
     try:
         response = requests.post(
