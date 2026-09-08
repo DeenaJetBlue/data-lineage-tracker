@@ -38,7 +38,7 @@ def read_config():
                 key, value = line.split('=', 1)
                 config[key.strip()] = value.strip()
 
-    return {'task_id': config.get('MoveIT_TaskID')}
+    return {'task_id': config.get('TaskID')}
 
 
 def get_access_token():
@@ -49,6 +49,9 @@ def get_access_token():
 
     token_url = f"{server}/api/v1/token"
 
+    print(f"DEBUG: Connecting to: {token_url}")
+    print(f"DEBUG: Username: {TUSERNAME}")
+
     try:
         response = requests.post(
             token_url,
@@ -58,17 +61,32 @@ def get_access_token():
                 "password": TPASSWORD
             },
             verify=False,
-            timeout=30
+            timeout=60,
+            allow_redirects=True
         )
 
+        print(f"DEBUG: Response Status: {response.status_code}")
+
         if response.status_code == 200:
-            return response.json().get('access_token')
+            token = response.json().get('access_token')
+            print(f"DEBUG: Got access token: {token[:20] if token else 'None'}...")
+            return token
         else:
             print(f"Error: Failed to get access token (Status: {response.status_code})")
+            print(f"Response: {response.text[:200]}")
             return None
 
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection Error: Could not connect to {server}")
+        print(f"Details: {str(e)}")
+        print(f"Possible causes: VPN not connected, firewall blocking, server unreachable")
+        return None
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout Error: Server took too long to respond")
+        print(f"Details: {str(e)}")
+        return None
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"Unexpected Error: {str(e)}")
         return None
 
 
@@ -78,6 +96,7 @@ def get_task_runs(task_id):
     if not server.startswith(('http://', 'https://')):
         server = f"https://{server}"
 
+    print(f"DEBUG: Authenticating...")
     access_token = get_access_token()
     if not access_token:
         print("Error: Could not authenticate")
@@ -92,22 +111,33 @@ def get_task_runs(task_id):
     url = f"{server}/api/v1/tasks/{task_id}/history"
     params = {"limit": 1}
 
+    print(f"DEBUG: Fetching task history from: {url}")
+
     try:
         response = requests.get(
             url,
             headers=headers,
             params=params,
             verify=False,
-            timeout=30
+            timeout=60,
+            allow_redirects=True
         )
+
+        print(f"DEBUG: Response Status: {response.status_code}")
 
         if response.status_code == 200:
             data = response.json()
             return data
         else:
             print(f"Error: Failed to get task runs (Status: {response.status_code})")
+            print(f"Response: {response.text[:200]}")
             return None
 
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection Error: Could not connect to MOVEit server")
+        print(f"Details: {str(e)}")
+        print(f"Possible causes: VPN not connected, firewall blocking, server unreachable")
+        return None
     except Exception as e:
         print(f"Error: {str(e)}")
         return None
