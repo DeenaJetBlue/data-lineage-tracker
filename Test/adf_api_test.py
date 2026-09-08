@@ -3,6 +3,7 @@ import sys
 import json
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 from azure.identity import ClientSecretCredential
 from azure.mgmt.datafactory import DataFactoryManagementClient
@@ -58,8 +59,22 @@ def get_client():
 
 
 def get_latest_run(client, pipeline_name, resource_group, factory_name):
-    # Query all runs ordered by end time (descending)
+    # Calculate time range: last 24 hours
+    now = datetime.utcnow()
+    one_day_ago = now - timedelta(days=1)
+
+    # Format timestamps as ISO 8601
+    last_updated_before = now.isoformat() + "Z"
+    last_updated_after = one_day_ago.isoformat() + "Z"
+
     filter_params = {
+        "filters": [{
+            "operand": "PipelineName",
+            "operator": "Equals",
+            "values": [pipeline_name]
+        }],
+        "lastUpdatedAfter": last_updated_after,
+        "lastUpdatedBefore": last_updated_before,
         "orderBy": [{
             "orderBy": "RunEnd",
             "order": "DESC"
@@ -72,45 +87,10 @@ def get_latest_run(client, pipeline_name, resource_group, factory_name):
         filter_parameters=filter_params
     )
 
-    print(f"\nDEBUG: Query all runs (no filter)")
-    print(f"DEBUG: Total runs found: {len(response.value) if response.value else 0}")
-
     runs = response.value if hasattr(response, 'value') and response.value else []
-
-    # Filter manually to find matching pipeline
-    matching_runs = [run for run in runs if run.pipeline_name == pipeline_name]
-    print(f"DEBUG: Runs matching pipeline '{pipeline_name}': {len(matching_runs)}")
-
-    if matching_runs:
-        print(f"DEBUG: Found {len(matching_runs)} matching runs. Returning latest...")
-
-    return matching_runs[0] if matching_runs else None
+    return runs[0] if runs else None
 
 
-def print_metrics(run):
-    metrics = {
-        "run_id": run.run_id,
-        "pipeline_name": run.pipeline_name,
-        "status": run.status,
-        "run_start": str(run.run_start) if hasattr(run, 'run_start') and run.run_start else None,
-        "run_end": str(run.run_end) if hasattr(run, 'run_end') and run.run_end else None,
-    }
-    print("Metrics:")
-    print(json.dumps(metrics, indent=2))
-
-
-def get_run_by_id(client, run_id, resource_group, factory_name):
-    """Query a specific run by ID"""
-    try:
-        run = client.pipeline_runs.get(
-            resource_group_name=resource_group,
-            factory_name=factory_name,
-            run_id=run_id
-        )
-        return run
-    except Exception as e:
-        print(f"Error querying run by ID: {e}")
-        return None
 
 
 def main():
@@ -124,34 +104,7 @@ def main():
 
     client = get_client()
 
-    # Try to get run by specific ID first
-    run_id = "c57901d9-ca68-4172-af9b-24e02d654432"
-    print(f"\n=== Querying run by ID: {run_id} ===")
-    run_by_id = get_run_by_id(
-        client,
-        run_id,
-        config['adf_resource_group'],
-        config['adf_factory_name']
-    )
-
-    if run_by_id:
-        print("SUCCESS: Found run by ID!")
-        print(f"Pipeline name: {run_by_id.pipeline_name}")
-        print(f"Status: {run_by_id.status}")
-        print("\nRun Details:")
-        run_data = {
-            "run_id": run_by_id.run_id,
-            "pipeline_name": run_by_id.pipeline_name,
-            "status": run_by_id.status,
-            "run_start": str(run_by_id.run_start) if hasattr(run_by_id, 'run_start') and run_by_id.run_start else None,
-            "run_end": str(run_by_id.run_end) if hasattr(run_by_id, 'run_end') and run_by_id.run_end else None,
-        }
-        print(json.dumps(run_data, indent=2))
-        print_metrics(run_by_id)
-    else:
-        print("Error: Could not find run by ID")
-
-    print("\n=== Now trying query by pipeline name ===")
+    # Get latest run
     latest_run = get_latest_run(
         client,
         config['adf_pipeline_name'],
@@ -160,9 +113,40 @@ def main():
     )
 
     if not latest_run:
-        print("Error: No runs found for pipeline (via query)")
-    else:
-        print("SUCCESS: Found run by pipeline name query!")
+        print("Error: No runs found for pipeline")
+        sys.exit(1)
+
+    run_id = latest_run.run_id
+    print(f"\nLatest Run ID: {run_id}")
+
+    # Get full details of the run
+    full_run_details = client.pipeline_runs.get(
+        resource_group_name=config['adf_resource_group'],
+        factory_name=config['adf_factory_name'],
+        run_id=run_id
+    )
+
+    print("\n=== FULL RUN DETAILS ===")
+
+    # Extract all available attributes
+    run_details = {
+        "runId": full_run_details.run_id,
+        "pipelineName": full_run_details.pipeline_name,
+        "status": full_run_details.status,
+        "runStart": str(full_run_details.run_start) if hasattr(full_run_details, 'run_start') and full_run_details.run_start else None,
+        "runEnd": str(full_run_details.run_end) if hasattr(full_run_details, 'run_end') and full_run_details.run_end else None,
+        "durationInMs": full_run_details.duration_in_ms if hasattr(full_run_details, 'duration_in_ms') else None,
+        "lastUpdated": str(full_run_details.last_updated) if hasattr(full_run_details, 'last_updated') and full_run_details.last_updated else None,
+        "message": full_run_details.message if hasattr(full_run_details, 'message') else None,
+        "annotations": full_run_details.annotations if hasattr(full_run_details, 'annotations') else [],
+        "parameters": full_run_details.parameters if hasattr(full_run_details, 'parameters') else {},
+        "invokedBy": {
+            "name": full_run_details.invoked_by.name if hasattr(full_run_details, 'invoked_by') and full_run_details.invoked_by and hasattr(full_run_details.invoked_by, 'name') else None,
+            "id": full_run_details.invoked_by.id if hasattr(full_run_details, 'invoked_by') and full_run_details.invoked_by and hasattr(full_run_details.invoked_by, 'id') else None,
+        } if hasattr(full_run_details, 'invoked_by') and full_run_details.invoked_by else None,
+    }
+
+    print(json.dumps(run_details, indent=2))
 
 
 if __name__ == "__main__":
