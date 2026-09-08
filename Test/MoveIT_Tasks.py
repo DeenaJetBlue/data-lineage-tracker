@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 import requests
 from pathlib import Path
 from dotenv import load_dotenv
@@ -36,6 +37,7 @@ if not all([WEBADMIN_SERVER, USERNAME, PASSWORD]):
     sys.exit(1)
 
 CONFIG_FILE = ".config"
+REQUEST_ATTEMPTS = 3
 if not Path(CONFIG_FILE).exists():
     print(f"Error: {CONFIG_FILE} not found!")
     sys.exit(1)
@@ -60,23 +62,39 @@ def get_access_token():
         server = f"https://{server}"
 
     token_url = f"{server}/api/v1/token"
+    server_host = server.split('://', 1)[-1]
 
     print(f"DEBUG: Connecting to: {token_url}")
     print(f"DEBUG: Username: {USERNAME}")
     print(f"DEBUG: Username length: {len(USERNAME)}")
 
+    request_data = {
+        "grant_type": "password",
+        "server_host": server_host,
+        "username": USERNAME,
+        "password": PASSWORD
+    }
+
     try:
-        response = requests.post(
-            token_url,
-            data={
-                "grant_type": "password",
-                "username": USERNAME,
-                "password": PASSWORD
-            },
-            verify=False,
-            timeout=60,
-            allow_redirects=True
-        )
+        for attempt in range(1, REQUEST_ATTEMPTS + 1):
+            try:
+                response = requests.post(
+                    token_url,
+                    headers={
+                        "Accept": "application/json",
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    data=request_data,
+                    verify=False,
+                    timeout=60,
+                    allow_redirects=True
+                )
+                break
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                if attempt == REQUEST_ATTEMPTS:
+                    raise
+                print(f"DEBUG: Token request failed ({attempt}/{REQUEST_ATTEMPTS}); retrying...")
+                time.sleep(attempt)
 
         print(f"DEBUG: Response Status: {response.status_code}")
 
@@ -120,26 +138,41 @@ def get_task_runs(task_id):
         "Content-Type": "application/json"
     }
 
-    # Get task run history
-    url = f"{server}/api/v1/tasks/{task_id}/history"
-    params = {"limit": 1}
+    # Get the latest task log entry
+    url = f"{server}/api/v1/tasks/{task_id}/log"
+    params = {
+        "page": 1,
+        "perPage": 50
+    }
 
-    print(f"DEBUG: Fetching task history from: {url}")
+    print(f"DEBUG: Fetching latest task log from: {url}")
 
     try:
-        response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-            verify=False,
-            timeout=60,
-            allow_redirects=True
-        )
+        for attempt in range(1, REQUEST_ATTEMPTS + 1):
+            try:
+                response = requests.get(
+                    url,
+                    headers=headers,
+                    params=params,
+                    verify=False,
+                    timeout=60,
+                    allow_redirects=True
+                )
+                break
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+                if attempt == REQUEST_ATTEMPTS:
+                    raise
+                print(f"DEBUG: Task log request failed ({attempt}/{REQUEST_ATTEMPTS}); retrying...")
+                time.sleep(attempt)
 
         print(f"DEBUG: Response Status: {response.status_code}")
 
         if response.status_code == 200:
             data = response.json()
+            items = data.get("items", []) if isinstance(data, dict) else []
+            if items:
+                latest = max(items, key=lambda item: item.get("startTime", ""))
+                data["items"] = [latest]
             return data
         else:
             print(f"Error: Failed to get task runs (Status: {response.status_code})")
