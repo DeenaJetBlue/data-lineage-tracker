@@ -15,12 +15,13 @@ if not env_path.exists():
 
 load_dotenv(env_path)
 
-TRANSFER_SERVER = os.getenv("TRANSFER_SERVER")
-TUSERNAME = os.getenv("TUSERNAME")
-TPASSWORD = os.getenv("TPASSWORD")
+WEBADMIN_SERVER = os.getenv("WEBADMIN_SERVER")
+USERNAME = os.getenv("USERNAME")
+PASSWORD = os.getenv("PASSWORD")
 
-if not all([TRANSFER_SERVER, TUSERNAME, TPASSWORD]):
-    print("Error: MOVEit Transfer credentials not configured in .env")
+if not all([WEBADMIN_SERVER, USERNAME, PASSWORD]):
+    print("Error: MOVEit credentials not configured in .env")
+    print("Required: WEBADMIN_SERVER, USERNAME, PASSWORD")
     sys.exit(1)
 
 CONFIG_FILE = ".config"
@@ -43,22 +44,22 @@ def read_config():
 
 def get_access_token():
     """Get access token from MOVEit Transfer API"""
-    server = TRANSFER_SERVER.strip().rstrip('/')
+    server = WEBADMIN_SERVER.strip().rstrip('/')
     if not server.startswith(('http://', 'https://')):
         server = f"https://{server}"
 
     token_url = f"{server}/api/v1/token"
 
     print(f"DEBUG: Connecting to: {token_url}")
-    print(f"DEBUG: Username: {TUSERNAME}")
+    print(f"DEBUG: Username: {USERNAME}")
 
     try:
         response = requests.post(
             token_url,
             data={
                 "grant_type": "password",
-                "username": TUSERNAME,
-                "password": TPASSWORD
+                "username": USERNAME,
+                "password": PASSWORD
             },
             verify=False,
             timeout=60,
@@ -92,7 +93,7 @@ def get_access_token():
 
 def get_task_runs(task_id):
     """Get latest runs for a MOVEit task"""
-    server = TRANSFER_SERVER.strip().rstrip('/')
+    server = WEBADMIN_SERVER.strip().rstrip('/')
     if not server.startswith(('http://', 'https://')):
         server = f"https://{server}"
 
