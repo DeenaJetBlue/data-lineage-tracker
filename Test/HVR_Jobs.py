@@ -1,4 +1,3 @@
-import json
 import requests
 import os
 from dotenv import load_dotenv
@@ -23,29 +22,14 @@ USER_CREDENTIALS = {
 # Define session to persist connection settings
 session = requests.Session()
 
-print("=" * 80)
-print("HVR API - Fetch Jobs and Display Status")
-print("=" * 80)
-
 if not HVR_URL or not HVR_USERNAME or not HVR_PASSWORD:
-    print("❌ HVR credentials not found in .env file!")
-    print("Required: HVR_URL, HVR_USERNAME, HVR_PASSWORD, HVR_HUB_NAME")
+    print("Error: HVR credentials not found in .env file!")
     exit(1)
-
-print(f"\n📌 HVR Server: {HVR_URL}")
-print(f"📌 Hub Name: {HVR_HUB_NAME}")
-print(f"📌 API Version: {HVR_API_VERSION}")
-print(f"📌 Username: {HVR_USERNAME}")
 
 
 def get_access_token():
-    """Authenticates credentials against the HVR token service."""
     auth_url = f"{HVR_URL}/auth/v1/password"
     headers = {"Content-Type": "application/json"}
-
-    print("\n[1] Authenticating with HVR Hub Server...")
-    print("-" * 80)
-    print(f"🔑 Auth URL: {auth_url}")
 
     try:
         response = session.post(
@@ -54,174 +38,73 @@ def get_access_token():
 
         if response.status_code == 200:
             auth_data = response.json()
-            token = auth_data.get("access_token")
-            print(f"✓ Authentication successful!")
-            print(f"✓ Access Token: {token[:20]}..." if token else "No token received")
-            return token
+            return auth_data.get("access_token")
         else:
-            print(f"❌ Authentication Failed ({response.status_code})")
-            print(f"Response: {response.text}")
+            print(f"Error: Authentication Failed ({response.status_code})")
             return None
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ Connection error: {e}")
-        if "NameResolutionError" in str(e) or "Failed to resolve" in str(e):
-            print(f"⚠️  HVR host '{HVR_URL}' cannot be resolved by Windows DNS.")
-            print("   Set HVR_URL in .env to the HVR DNS name or IP address provided by your HVR administrator.")
-            print("   A VDI/VPN connection may also be required for the internal DNS record.")
-        else:
-            print("⚠️  Make sure you have VDI connection to the HVR server")
+        print(f"Error: {e}")
         return None
 
 
 def fetch_hub_jobs(token):
-    """Retrieves jobs metadata using the authenticated bearer token."""
     jobs_url = f"{HVR_URL}/api/{HVR_API_VERSION}/hubs/{HVR_HUB_NAME}/jobs"
 
-    # Inject the retrieved token into headers
     headers = {
         "Authorization": f"Bearer {token}",
         "Accept": "application/json",
     }
 
-    # Optional query parameters
     query_params = {
         "fetch": "latency",
     }
-
-    print("\n[2] Fetching all HVR jobs...")
-    print("-" * 80)
-    print(f"📡 Jobs URL: {jobs_url}")
 
     try:
         response = session.get(
             jobs_url, headers=headers, params=query_params, timeout=30
         )
-        print(response.json())
 
         if response.status_code == 200:
             jobs_data = response.json()
 
-            # Handle two response formats:
-            # 1. List of job objects: [{'name': '...', 'state': '...'}, ...]
-            # 2. Dict with job names as keys: {'job_name': {'state': '...', 'latency': ...}, ...}
             if isinstance(jobs_data, list):
                 jobs = jobs_data
             elif isinstance(jobs_data, dict) and "jobs" in jobs_data:
                 jobs = jobs_data.get("jobs", [])
             elif isinstance(jobs_data, dict):
-                # Convert dict format to list format
                 jobs = [{"name": name, **details} for name, details in jobs_data.items()]
             else:
                 jobs = []
 
-            if not jobs:
-                print("❌ No jobs found!")
-                return None
+            running_jobs = [job for job in jobs if isinstance(job, dict) and job.get("state") == "RUNNING"]
 
-            print(f"✓ Found {len(jobs)} job(s)\n")
+            print(f"Total Jobs: {len(jobs)}")
+            print(f"Running Jobs: {len(running_jobs)}\n")
 
-            print("Available Jobs:")
-            print("-" * 80)
-            for i, job in enumerate(jobs[:10], 1):
-                job_name = job.get("name", "N/A")
-                job_state = job.get("state", "unknown")
-                print(f"{i}. Name: {job_name}")
-                print(f"   State: {job_state}")
-                if "latency" in job:
-                    print(f"   Latency: {job.get('latency')}")
+            for job in running_jobs:
+                print(f"Job Name: {job.get('name', 'N/A')}")
+                for key, value in job.items():
+                    if key != 'name':
+                        print(f"  {key}: {value}")
                 print()
 
-            return jobs
-
-        elif response.status_code == 404:
-            print(f"❌ Error: Hub '{HVR_HUB_NAME}' could not be found.")
-            return None
-        else:
-            print(f"❌ Request failed ({response.status_code}): {response.text}")
-            return None
-
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Error fetching jobs: {e}")
-        return None
-
-
-def fetch_job_details(token, job_name):
-    """Fetch detailed status for a specific job."""
-    detail_url = f"{HVR_URL}/api/{HVR_API_VERSION}/hubs/{HVR_HUB_NAME}/jobs/{job_name}"
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json",
-    }
-
-    print(f"\n[3] Fetching detailed status for job '{job_name}'...")
-    print("-" * 80)
-    print(f"📌 Detail URL: {detail_url}")
-
-    try:
-        response = session.get(detail_url, headers=headers, timeout=30)
-
-        if response.status_code == 200:
-            job_details = response.json()
-            print("\n✓ Job Details Retrieved:")
-            print("-" * 80)
-            print(json.dumps(job_details, indent=2))
-
-            # Extract key information
-            print("\n📊 Job Status Summary:")
-            print("-" * 80)
-
-            # Display key fields
-            key_fields = {
-                "Name": job_details.get("name"),
-                "State": job_details.get("state"),
-                "Status": job_details.get("status"),
-                "Enabled": job_details.get("enabled"),
-                "Description": job_details.get("description"),
-                "Latency": job_details.get("latency"),
-                "Last Error": job_details.get("last_error"),
-                "Created": job_details.get("created"),
-                "Modified": job_details.get("modified"),
-            }
-
-            for field_name, value in key_fields.items():
-                if value is not None:
-                    print(f"{field_name}: {value}")
-
-            return job_details
+            return running_jobs
 
         else:
-            print(f"❌ Request failed ({response.status_code}): {response.text}")
-            return None
+            print(f"Error: Request failed ({response.status_code})")
+            return []
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error fetching job details: {e}")
-        return None
+        print(f"Error: {e}")
+        return []
 
 
-# --- Execution Flow ---
 if __name__ == "__main__":
-    # Step 1: Get access token
     access_token = get_access_token()
 
     if not access_token:
-        print("\n❌ Failed to obtain access token. Exiting.")
+        print("Error: Failed to obtain access token")
         exit(1)
 
-    # Step 2: Fetch all jobs
-    jobs = fetch_hub_jobs(access_token)
-
-    if jobs and len(jobs) > 0:
-        # Step 3: Pick first job and fetch its details
-        first_job = jobs[0]
-        job_name = first_job.get("name")
-
-        if job_name:
-            job_details = fetch_job_details(access_token, job_name)
-        else:
-            print("❌ Could not extract job name")
-
-print("\n" + "=" * 80)
-print("✓ HVR API Test Complete")
-print("=" * 80)
+    fetch_hub_jobs(access_token)
