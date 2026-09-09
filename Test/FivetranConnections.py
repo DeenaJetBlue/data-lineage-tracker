@@ -1,24 +1,35 @@
 import requests
 import os
 import json
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from base64 import b64encode
 from datetime import datetime, timedelta
 
 load_dotenv()
 
-config_file = "c:\\Users\\DeenaNath\\data-lineage-tracker\\.config"
-connection_id = None
+CONFIG_FILE = ".config"
+if not Path(CONFIG_FILE).exists():
+    print(f"Error: {CONFIG_FILE} not found!")
+    sys.exit(1)
 
-with open(config_file, 'r') as f:
-    for line in f:
-        if line.startswith('ConnectionID='):
-            connection_id = line.split('=')[1].strip()
-            break
+def read_config():
+    config = {}
+    with open(CONFIG_FILE, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                config[key.strip()] = value.strip()
+    return config
+
+config = read_config()
+connection_id = config.get('ConnectionID')
 
 if not connection_id:
     print("Error: ConnectionID not found in .config")
-    exit()
+    sys.exit(1)
 
 FIVETRAN_API_KEY = os.getenv("FIVETRAN_API_KEY")
 FIVETRAN_API_SECRET = os.getenv("FIVETRAN_API_SECRET")
