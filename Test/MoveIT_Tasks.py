@@ -108,6 +108,11 @@ def get_access_token():
             return None
 
     except requests.exceptions.ConnectionError as e:
+        if "10013" in str(e):
+            print("Connection Error: Windows denied the outbound socket")
+            print("Details: A local firewall, VPN policy, or endpoint security rule blocked the connection")
+            print("Action: Reconnect to the VPN or ask IT to allow Python/python.exe to reach 10.204.124.216:443")
+            return None
         print(f"Connection Error: Could not connect to {server}")
         print(f"Details: {str(e)}")
         print(f"Possible causes: VPN not connected, firewall blocking, server unreachable")
@@ -169,6 +174,7 @@ def get_task_runs(task_id):
 
         if response.status_code == 200:
             data = response.json()
+            print(f"DEBUG: Task log data received: {json.dumps(data)}...")
             items = data.get("items", []) if isinstance(data, dict) else []
             if items:
                 latest = max(items, key=lambda item: item.get("startTime", ""))
@@ -180,6 +186,11 @@ def get_task_runs(task_id):
             return None
 
     except requests.exceptions.ConnectionError as e:
+        if "10013" in str(e):
+            print("Connection Error: Windows denied the outbound socket")
+            print("Details: A local firewall, VPN policy, or endpoint security rule blocked the connection")
+            print("Action: Reconnect to the VPN or ask IT to allow Python/python.exe to reach 10.204.124.216:443")
+            return None
         print(f"Connection Error: Could not connect to MOVEit server")
         print(f"Details: {str(e)}")
         print(f"Possible causes: VPN not connected, firewall blocking, server unreachable")
