@@ -1,285 +1,260 @@
-r"""
-MOVEit Automation API - Task Logs Viewer
-
-REQUIRED PACKAGES:
-    pip install requests
-
-RUN INSTRUCTIONS:
-    1. Connect to JetBlue VPN
-    2. Open PowerShell/Command Prompt
-    3. Navigate to: c:\Users\DeenaNath\data-lineage-tracker\Test
-    4. Run: python MoveIT_api.py
-
-If you get 'ModuleNotFoundError', run:
-    pip install requests
-"""
-
-import sys
 import os
 import requests
 import json
-import warnings
 import subprocess
-from urllib.parse import urlparse
 from urllib.parse import urlencode
-from urllib3.exceptions import InsecureRequestWarning
 from dotenv import load_dotenv
-from dotenv import dotenv_values
+from typing import Optional, Dict, Any
+import urllib3
 
-warnings.simplefilter('ignore', InsecureRequestWarning)
-
-try:
-    import requests
-except ImportError:
-    print("ERROR: 'requests' package is not installed.")
-    print("\nInstall it with:")
-    print("    pip install requests")
-    sys.exit(1)
-
-ENV_PATH = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(dotenv_path=ENV_PATH)
-DOTENV_VALUES = dotenv_values(ENV_PATH)
-
-WEBADMIN_SERVER = os.getenv("MOVEIT_SERVER") or os.getenv("WEBADMIN_SERVER") or DOTENV_VALUES.get("WEBADMIN_SERVER")
-USERNAME = os.getenv("MOVEIT_USERNAME") or DOTENV_VALUES.get("MOVEIT_USERNAME") or DOTENV_VALUES.get("USERNAME") or os.getenv("USERNAME")
-PASSWORD = os.getenv("MOVEIT_PASSWORD") or DOTENV_VALUES.get("MOVEIT_PASSWORD") or DOTENV_VALUES.get("PASSWORD") or os.getenv("PASSWORD")
-MOVEIT_BASE_URL = os.getenv("MOVEIT_BASE_URL") or DOTENV_VALUES.get("MOVEIT_BASE_URL")
-
-# Target Task ID
-TARGET_TASK_ID = "243149144"
-
-BASE_URL = (MOVEIT_BASE_URL or f"https://{WEBADMIN_SERVER}/api/v1").rstrip("/")
-SERVER_HOST = urlparse(BASE_URL).hostname or WEBADMIN_SERVER
+# Suppress SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class CurlResponse:
-    def __init__(self, status_code, text):
+    def __init__(self, status_code: int, text: str):
         self.status_code = status_code
         self.text = text
 
-    def json(self):
+    def json(self) -> Dict[str, Any]:
         return json.loads(self.text)
 
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise requests.exceptions.HTTPError(
-                f"{self.status_code} Server Error", response=self
-            )
+# Load environment variables
+load_dotenv()
 
+class MOVEitTransferAPI:
+    def __init__(self):
+        self.server = os.getenv('TRANSFER_SERVER')
+        self.username = os.getenv('TUSERNAME')
+        self.password = os.getenv('TPASSWORD')
+        self.access_token = None
+        self.refresh_token = None
 
-def curl_request(method, url, headers=None, data=None, params=None):
-    """Use Windows Schannel, which supports this server's TLS renegotiation."""
-    if params:
-        url = f"{url}?{urlencode(params)}"
+        if not all([self.server, self.username, self.password]):
+            raise ValueError("Missing MOVEit Transfer credentials in .env file")
 
-    def quote(value):
-        return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+        self.server = self.server.strip().rstrip('/')
+        if not self.server.startswith(('http://', 'https://')):
+            self.server = f"https://{self.server}"
+        self.base_url = f"{self.server}/api/v1"
 
-    config = [
-        f"url = {quote(url)}",
-        f"request = {method}",
-        "insecure",
-        "silent",
-        "show-error",
-        'write-out = "\\n__MOVEIT_HTTP_STATUS__:%{http_code}"',
-    ]
-    for name, value in (headers or {}).items():
-        config.append(f"header = {quote(f'{name}: {value}')}")
-    for name, value in (data or {}).items():
-        config.append(f"data-urlencode = {quote(f'{name}={value}')}")
+    @staticmethod
+    def _request(method: str, url: str, headers: Optional[Dict[str, str]] = None,
+                 data: Optional[Dict[str, Any]] = None,
+                 params: Optional[Dict[str, Any]] = None) -> CurlResponse:
+        if params:
+            url = f"{url}?{urlencode(params)}"
 
-    result = subprocess.run(
-        ["curl.exe", "--config", "-"],
-        input="\n".join(config),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode:
-        raise requests.exceptions.ConnectionError(result.stderr.strip())
+        command = [
+            "curl.exe", "--silent", "--show-error", "--insecure",
+            "--request", method, url,
+            "--write-out", "\n__HTTP_STATUS__:%{http_code}"
+        ]
+        for name, value in (headers or {}).items():
+            command.extend(["--header", f"{name}: {value}"])
+        for name, value in (data or {}).items():
+            command.extend(["--data-urlencode", f"{name}={value}"])
 
-    body, marker, status = result.stdout.rpartition("\n__MOVEIT_HTTP_STATUS__:")
-    if not marker:
-        raise requests.exceptions.ConnectionError("curl returned no HTTP status")
-    return CurlResponse(int(status), body)
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode:
+            raise requests.exceptions.ConnectionError(result.stderr.strip())
 
-print("=" * 80)
-print("MOVEit Automation API - Task Logs Viewer")
-print("=" * 80)
-print(f"\n📌 Connecting to MOVEit API...")
-print(f"   Server: {WEBADMIN_SERVER}")
-print(f"   Base URL: {BASE_URL}")
-print(f"   Target Task ID: {TARGET_TASK_ID}\n")
+        body, marker, status = result.stdout.rpartition("\n__HTTP_STATUS__:")
+        if not marker:
+            raise requests.exceptions.ConnectionError("curl returned no HTTP status")
+        return CurlResponse(int(status), body)
 
-def get_access_token():
-    """Request an access token from MOVEit Automation API"""
-    url = f"{BASE_URL}/token"
-    headers = {
-        "accept": "application/json",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    data = {
-        "grant_type": "password",
-        "server_host": SERVER_HOST,
-        "username": USERNAME,
-        "password": PASSWORD
-    }
+    def get_access_token(self) -> bool:
+        """Request an access token from MOVEit Transfer API"""
+        try:
+            token_url = f"{self.base_url}/token"
 
-    response = None
-    try:
-        print("[1] Authenticating with MOVEit API...")
-        print("-" * 80)
-        print(f"POST: {url}")
-        response = curl_request("POST", url, headers=headers, data=data)
-        print(f"Status: {response.status_code}")
-        response.raise_for_status()
-        token_data = response.json()
-        token = token_data["access_token"]
-        print(f"✓ Authentication successful!")
-        print(f"✓ Token: {token[:30]}...")
-        return token
-    except requests.exceptions.Timeout:
-        print(f"✗ Error: Request timed out after 10 seconds. Check if server is reachable.")
-        return None
-    except requests.exceptions.ConnectionError as e:
-        print(f"✗ Connection error: {e}")
-        print(f"   TCP connectivity exists, but the server closed the TLS connection.")
-        print(f"   Use the MOVEit DNS hostname in MOVEIT_BASE_URL if the IP was supplied.")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"✗ Error requesting token: {e}")
-        if response is not None and response.text:
-            print(f"   API response: {response.text}")
-        return None
+            payload = {
+                "grant_type": "password",
+                "username": self.username,
+                "password": self.password
+            }
 
-def get_task_details(access_token, task_id):
-    """Get details for a specific task"""
-    url = f"{BASE_URL}/tasks/{task_id}"
-    headers = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {access_token}"
-    }
+            response = self._request("POST", token_url, data=payload)
 
-    try:
-        print(f"\n[2] Fetching Task Details...")
-        print("-" * 80)
-        print(f"GET: {url}")
-        response = curl_request("GET", url, headers=headers)
-        print(f"Status: {response.status_code}")
+            if response.status_code == 200:
+                token_data = response.json()
+                self.access_token = token_data.get('access_token')
+                self.refresh_token = token_data.get('refresh_token')
+                print(f"✓ Access token obtained successfully")
+                print(f"  Token expires in: {token_data.get('expires_in')} seconds")
+                return True
+            else:
+                print(f"✗ Failed to get access token: {response.status_code}")
+                print(f"  Response: {response.text}")
+                return False
 
-        if response.status_code == 200:
-            task_details = response.json()
-            print(f"✓ Task details retrieved!")
-            return task_details
-        else:
-            print(f"✗ Error: {response.status_code}")
-            print(f"   Response: {response.text}")
+        except Exception as e:
+            print(f"✗ Error requesting access token: {str(e)}")
+            return False
+
+    def get_files(self, page: int = 1, per_page: int = 25,
+                  sort_field: str = "path", sort_direction: str = "asc") -> Optional[Dict[str, Any]]:
+        """Get list of files current user can view"""
+        if not self.access_token:
+            print("✗ Not authenticated. Call get_access_token() first.")
             return None
 
-    except requests.exceptions.Timeout:
-        print(f"✗ Error: Request timed out after 10 seconds")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"✗ Error fetching task details: {e}")
-        return None
+        try:
+            files_url = f"{self.base_url}/files"
 
-def get_task_logs(access_token, task_id, page=1, per_page=50):
-    """Get logs for a specific task"""
-    url = f"{BASE_URL}/tasks/{task_id}/log"
-    headers = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {access_token}"
-    }
-    params = {
-        "page": page,
-        "perPage": per_page
-    }
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json"
+            }
 
-    try:
-        print(f"\n[3] Fetching Task Logs...")
-        print("-" * 80)
-        print(f"GET: {url}")
-        print(f"Parameters: page={page}, perPage={per_page}")
-        response = curl_request("GET", url, headers=headers, params=params)
-        print(f"Status: {response.status_code}")
+            params = {
+                "page": page,
+                "perPage": per_page,
+                "sortField": sort_field,
+                "sortDirection": sort_direction
+            }
 
-        if response.status_code == 200:
-            logs_data = response.json()
-            print(f"✓ Task logs retrieved!")
-            return logs_data
-        elif response.status_code == 404:
-            print(f"✗ Error: Task ID {task_id} not found")
-            return None
-        else:
-            print(f"✗ Error: {response.status_code}")
-            print(f"   Response: {response.text}")
+            response = self._request("GET", files_url, headers=headers, params=params)
+
+            if response.status_code == 200:
+                files_data = response.json()
+                print(f"✓ Retrieved files successfully")
+                return files_data
+            elif response.status_code == 403:
+                print(f"✗ Forbidden: You don't have permission to access files")
+                return None
+            else:
+                print(f"✗ Failed to retrieve files: {response.status_code}")
+                print(f"  Response: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"✗ Error retrieving files: {str(e)}")
             return None
 
-    except requests.exceptions.Timeout:
-        print(f"✗ Error: Request timed out after 10 seconds")
-        return None
-    except requests.exceptions.RequestException as e:
-        print(f"✗ Error fetching task logs: {e}")
-        return None
+    def refresh_access_token(self) -> bool:
+        """Refresh the access token using refresh token"""
+        if not self.refresh_token:
+            print("✗ No refresh token available. Request a new access token.")
+            return False
+
+        try:
+            token_url = f"{self.base_url}/token"
+
+            payload = {
+                "grant_type": "refresh_token",
+                "refresh_token": self.refresh_token
+            }
+
+            response = self._request("POST", token_url, data=payload)
+
+            if response.status_code == 200:
+                token_data = response.json()
+                self.access_token = token_data.get('access_token')
+                self.refresh_token = token_data.get('refresh_token')
+                print(f"✓ Token refreshed successfully")
+                return True
+            else:
+                print(f"✗ Failed to refresh token: {response.status_code}")
+                return False
+
+        except Exception as e:
+            print(f"✗ Error refreshing token: {str(e)}")
+            return False
+
+    def get_user_info(self) -> Optional[Dict[str, Any]]:
+        """Get information about the current authenticated user"""
+        if not self.access_token:
+            print("✗ Not authenticated. Call get_access_token() first.")
+            return None
+
+        try:
+            user_url = f"{self.base_url}/users/self"
+
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json"
+            }
+
+            response = self._request("GET", user_url, headers=headers)
+
+            if response.status_code == 200:
+                user_data = response.json()
+                print(f"✓ Retrieved user info successfully")
+                return user_data
+            else:
+                print(f"✗ Failed to retrieve user info: {response.status_code}")
+                print(f"  Response: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"✗ Error retrieving user info: {str(e)}")
+            return None
+
 
 def main():
-    print("Requesting access token...\n")
-    token = get_access_token()
+    """Example usage of MOVEit Transfer API"""
+    try:
+        # Initialize API client
+        api = MOVEitTransferAPI()
+        print(f"Connected to MOVEit Transfer Server: {api.server}\n")
 
-    if not token:
-        print("\n✗ Failed to get access token")
-        return
+        # Step 1: Get access token
+        print("Step 1: Requesting access token...")
+        if not api.get_access_token():
+            print("Failed to authenticate. Exiting.")
+            return
 
-    # Get task details
-    task_details = get_task_details(token, TARGET_TASK_ID)
+        print()
 
-    if task_details:
-        print("\n📋 Task Details:")
-        print("-" * 80)
-        print(json.dumps(task_details, indent=2))
+        # Step 2: Get user information
+        print("Step 2: Retrieving user information...")
+        user_info = api.get_user_info()
+        if user_info:
+            print(f"  User ID: {user_info.get('id')}")
+            print(f"  User Name: {user_info.get('name')}")
+            print(f"  User Directory: {user_info.get('directory')}")
 
-    # Get task logs
-    logs_data = get_task_logs(token, TARGET_TASK_ID)
+        print()
 
-    if logs_data:
-        print("\n📊 Task Logs Summary:")
-        print("-" * 80)
+        # Step 3: Get files sorted by uploadstamp (recent to oldest)
+        print("Step 3: Retrieving files (sorted by uploadstamp - recent to oldest)...")
+        files_data = api.get_files(per_page=50, sort_field="uploadstamp", sort_direction="desc")
+        if files_data:
+            # Extract and display file details in readable format
+            files_list = files_data.get('items', [])
+            total_count = files_data.get('totalCount', len(files_list))
 
-        # Extract logs and pagination info
-        if isinstance(logs_data, dict):
-            logs = logs_data.get("logs", []) or logs_data.get("items", []) or [logs_data]
-            total = logs_data.get("totalCount", len(logs))
-            page = logs_data.get("page", 1)
-            per_page = logs_data.get("perPage", 50)
+            print(f"\nTotal files: {total_count}")
+            print(f"Files retrieved: {len(files_list)}\n")
+            print(f"{'File Name':<50} {'Size':<15} {'Upload Timestamp':<25}")
+            print("-" * 90)
 
-            print(f"Total Logs: {total}")
-            print(f"Page: {page}")
-            print(f"Per Page: {per_page}")
-            print(f"Logs Retrieved: {len(logs)}\n")
-        else:
-            logs = logs_data if isinstance(logs_data, list) else [logs_data]
+            for file in files_list:
+                name = file.get('name', 'N/A')[:50]
+                size = file.get('size', 0)
+                upload_stamp = file.get('uploadstamp', 'N/A')
 
-        if logs:
-            print("Log Entries:")
-            print("-" * 80)
-            for i, log_entry in enumerate(logs[:10], 1):  # Show first 10
-                print(f"\n{i}. {json.dumps(log_entry, indent=2)}")
+                # Format size in human-readable format
+                if size >= 1024**3:
+                    size_str = f"{size / (1024**3):.2f} GB"
+                elif size >= 1024**2:
+                    size_str = f"{size / (1024**2):.2f} MB"
+                elif size >= 1024:
+                    size_str = f"{size / 1024:.2f} KB"
+                else:
+                    size_str = f"{size} B"
 
-            if len(logs) > 10:
-                print(f"\n... and {len(logs) - 10} more log entries")
+                print(f"{name:<50} {size_str:<15} {str(upload_stamp):<25}")
 
-            # Show full JSON
-            print("\n\n📄 Full Logs Response (JSON):")
-            print("-" * 80)
-            print(json.dumps(logs_data, indent=2))
-        else:
-            print("No log entries found")
-    else:
-        print("\n✗ Failed to retrieve task logs")
+            # Also output raw JSON for complete details
+            print("\n\nComplete JSON Response:")
+            print(json.dumps(files_data, indent=2))
 
-    print("\n" + "=" * 80)
-    print("✓ MOVEit API Task Logs Viewer Complete")
-    print("=" * 80)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
