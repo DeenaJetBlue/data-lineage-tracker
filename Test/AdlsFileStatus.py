@@ -2,7 +2,7 @@
 ADLS File Listing and Status Check
 Reads ADLS configuration from .config and credentials from .env
 Lists all files in ADLS root folder and shows details of the most recent file
-Uses Service Principal authentication
+Uses Service Principal authentication with Blob API (compatible with all storage account features)
 
 PREREQUISITES:
     pip install azure-storage-file-datalake
@@ -25,7 +25,7 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
-from azure.storage.filedatalake import DataLakeServiceClient
+from azure.storage.blob import BlobServiceClient
 from azure.identity import ClientSecretCredential
 from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationError
 from datetime import datetime
@@ -89,7 +89,7 @@ def load_config_file() -> dict:
 
 def list_files_in_folder(storage_account: str, container_name: str, folder_path: str) -> list:
     """
-    List all files in a folder in ADLS and return details
+    List all files in a folder in ADLS using Blob API
 
     Args:
         storage_account: ADLS storage account name
@@ -107,7 +107,7 @@ def list_files_in_folder(storage_account: str, container_name: str, folder_path:
         print(f"Folder Path: {folder_path}")
 
         print(f"\n🔐 Connecting with Service Principal...")
-        account_url = f"https://{storage_account}.dfs.core.windows.net"
+        account_url = f"https://{storage_account}.blob.core.windows.net"
 
         credential = ClientSecretCredential(
             tenant_id=ADLS_TENANT_ID,
@@ -115,23 +115,24 @@ def list_files_in_folder(storage_account: str, container_name: str, folder_path:
             client_secret=ADLS_CLIENT_SECRET
         )
 
-        service_client = DataLakeServiceClient(account_url=account_url, credential=credential)
+        blob_service_client = BlobServiceClient(account_url=account_url, credential=credential)
         print(f"✅ Connected successfully!")
 
-        file_system_client = service_client.get_file_system_client(file_system=container_name)
+        container_client = blob_service_client.get_container_client(container_name)
 
         print(f"\n🔍 Scanning folder for files...")
         files = []
 
         try:
-            paths = file_system_client.get_paths(path=folder_path, recursive=True)
-            for path in paths:
-                if not path.is_directory:
+            blobs = container_client.list_blobs(name_starts_with=folder_path)
+            for blob in blobs:
+                # Filter out if it's a directory marker
+                if not blob.name.endswith('/'):
                     file_details = {
-                        'name': path.name.split('/')[-1],
-                        'full_path': path.name,
-                        'size': path.content_length,
-                        'last_modified': path.last_modified,
+                        'name': blob.name.split('/')[-1],
+                        'full_path': blob.name,
+                        'size': blob.size,
+                        'last_modified': blob.last_modified,
                     }
                     files.append(file_details)
 
@@ -145,7 +146,7 @@ def list_files_in_folder(storage_account: str, container_name: str, folder_path:
             return files
 
         except ResourceNotFoundError:
-            print(f"⚠️  Folder not found: {folder_path}")
+            print(f"⚠️  Container or folder not found")
             return []
 
     except ClientAuthenticationError as e:
