@@ -195,17 +195,12 @@ def main():
     )
 
     if files:
-        print(f"\n📊 Files Found (sorted by most recent):")
+        print(f"\n📊 Total Files Found: {len(files)}")
         print("=" * 70)
-        for i, file in enumerate(files, 1):
-            print(f"\n{i}. File: {file['name']}")
-            print(f"   Path: {file['full_path']}")
-            print(f"   Size: {file['size']:,} bytes")
-            print(f"   Last Modified: {file['last_modified']}")
 
         # Show most recent file details
         most_recent = files[0]
-        print(f"\n\n⭐ MOST RECENT FILE:")
+        print(f"\n⭐ MOST RECENT FILE:")
         print("=" * 70)
         print(f"Name: {most_recent['name']}")
         print(f"Full Path: {most_recent['full_path']}")
