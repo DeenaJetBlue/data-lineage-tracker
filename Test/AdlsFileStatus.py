@@ -119,17 +119,16 @@ def list_files_in_folder(storage_account: str, container_name: str, folder_path:
         print(f"✅ Connected successfully!")
 
         file_system_client = service_client.get_file_system_client(file_system=container_name)
-        directory_client = file_system_client.get_directory_client(folder_path)
 
         print(f"\n🔍 Scanning folder for files...")
         files = []
 
         try:
-            paths = directory_client.get_paths(recursive=True)
+            paths = file_system_client.get_paths(path=folder_path, recursive=True)
             for path in paths:
                 if not path.is_directory:
                     file_details = {
-                        'name': path.name,
+                        'name': path.name.split('/')[-1],
                         'full_path': path.name,
                         'size': path.content_length,
                         'last_modified': path.last_modified,
