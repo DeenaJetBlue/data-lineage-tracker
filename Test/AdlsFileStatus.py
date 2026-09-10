@@ -1,7 +1,7 @@
 """
-ADLS File Existence Check
-Reads configuration from ConfigurationFile.csv and credentials from .env
-Checks if a particular file/path exists in Azure Data Lake Storage Gen2
+ADLS File Listing and Status Check
+Reads ADLS configuration from .config and credentials from .env
+Lists all files in ADLS root folder and shows details of the most recent file
 Uses Service Principal authentication
 
 PREREQUISITES:
@@ -14,16 +14,21 @@ REQUIRED .env variables:
     ADLS_CLIENT_ID=<your-client-id>
     ADLS_CLIENT_SECRET=<your-client-secret>
 
+REQUIRED .config variables:
+    ADLS_Storage_Account_Name=<storage-account>
+    ADLS_Container_Name=<container-name>
+    ADLS_Root_Folder=<root-folder-path>
+
 """
 
 import os
-import csv
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from azure.storage.filedatalake import DataLakeServiceClient
 from azure.identity import ClientSecretCredential
 from azure.core.exceptions import ResourceNotFoundError, ClientAuthenticationError
+from datetime import datetime
 
 # Load environment variables from .env
 env_path = Path(__file__).parent.parent / ".env"
@@ -43,62 +48,67 @@ if not all([ADLS_TENANT_ID, ADLS_CLIENT_ID, ADLS_CLIENT_SECRET]):
     print("   Required: ADLS_TENANT_ID, ADLS_CLIENT_ID, ADLS_CLIENT_SECRET")
     sys.exit(1)
 
-# Service Principal Details
 APPLICATION_ID = ADLS_CLIENT_ID
 
-def load_config(table_name: str = "Aerodata") -> dict:
-    """Load configuration from ConfigurationFile.csv"""
-    config_file = "ConfigurationFile.csv"
+def load_config_file() -> dict:
+    """Load ADLS configuration from .config file"""
+    config_path = Path(__file__).parent.parent / ".config"
 
-    if not Path(config_file).exists():
-        print(f"❌ Error: {config_file} not found!")
+    if not config_path.exists():
+        print(f"❌ Error: .config not found in project root!")
         return None
 
-    with open(config_file, 'r') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row.get('TableName') == table_name:
-                return {
-                    'table_name': row.get('TableName'),
-                    'adls_storage_rg': row.get('ADLSStorageRG'),
-                    'adls_storage_name': row.get('ADLSStorageName'),
-                    'adls_container_name': row.get('ADLSContainerName'),
-                    'adls_path': row.get('ADLSPath'),
-                    'adf_resource_group': row.get('ADFResourceGroup'),
-                    'adf_factory_name': row.get('ADFFactoryName'),
-                    'adf_pipeline': row.get('ADFPipelineName')
-                }
+    config = {}
+    try:
+        with open(config_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        config[key.strip()] = value.strip()
 
-    print(f"❌ Error: Table '{table_name}' not found in {config_file}")
-    return None
+        # Extract ADLS configuration
+        adls_config = {
+            'adls_storage_name': config.get('ADLS_Storage_Account_Name'),
+            'adls_container_name': config.get('ADLS_Container_Name'),
+            'adls_root_folder': config.get('ADLS_Root_Folder'),
+            'adls_resource_group': config.get('ADLS_Resource_Group')
+        }
+
+        if not all([adls_config['adls_storage_name'], adls_config['adls_container_name'], adls_config['adls_root_folder']]):
+            print("❌ Error: Missing required ADLS configuration in .config")
+            print("   Required: ADLS_Storage_Account_Name, ADLS_Container_Name, ADLS_Root_Folder")
+            return None
+
+        return adls_config
+    except Exception as e:
+        print(f"❌ Error reading .config: {e}")
+        return None
 
 
-def check_file_exists(storage_account: str, container_name: str, file_path: str) -> dict:
+def list_files_in_folder(storage_account: str, container_name: str, folder_path: str) -> list:
     """
-    Check if a file/directory exists in ADLS using Service Principal authentication
+    List all files in a folder in ADLS and return details
 
     Args:
         storage_account: ADLS storage account name
-        container_name: Container name (e.g., "dataforrag")
-        file_path: File path within container (e.g., "FolderTest/Demo.txt")
+        container_name: Container name
+        folder_path: Folder path within container
+
+    Returns:
+        List of file details sorted by modification time (newest first)
     """
     try:
-
-        print(f"\n📋 ADLS File Existence Check (Service Principal Authentication)")
+        print(f"\n📂 Listing Files in ADLS Folder")
         print("=" * 70)
         print(f"Storage Account: {storage_account}")
         print(f"Container: {container_name}")
-        print(f"File Path: {file_path}")
-        print(f"Client ID: {APPLICATION_ID}")
+        print(f"Folder Path: {folder_path}")
 
-        # Create DataLakeServiceClient using Service Principal
         print(f"\n🔐 Connecting with Service Principal...")
-
         account_url = f"https://{storage_account}.dfs.core.windows.net"
-        print(f"   Account URL: {account_url}")
 
-        # Create ClientSecretCredential using service principal
-        print(f"   Using Service Principal authentication...")
         credential = ClientSecretCredential(
             tenant_id=ADLS_TENANT_ID,
             client_id=ADLS_CLIENT_ID,
@@ -106,97 +116,104 @@ def check_file_exists(storage_account: str, container_name: str, file_path: str)
         )
 
         service_client = DataLakeServiceClient(account_url=account_url, credential=credential)
-        print(f"✅ Connected successfully with Service Principal!")
+        print(f"✅ Connected successfully!")
 
         file_system_client = service_client.get_file_system_client(file_system=container_name)
+        directory_client = file_system_client.get_directory_client(folder_path)
 
-        print(f"\n🔍 Checking if path exists...")
+        print(f"\n🔍 Scanning folder for files...")
+        files = []
 
-        # Try to get file properties first
         try:
-            file_client = file_system_client.get_file_client(file_path)
-            properties = file_client.get_file_properties()
-            print(f"\n✅ File EXISTS!")
-            print(f"\n📊 Properties:")
-            print(f"   - Size: {properties.size} bytes")
-            print(f"   - Last Modified: {properties.last_modified}")
-            return {"status": "exists", "message": "File found in ADLS", "container": container_name, "path": file_path, "type": "file"}
-        except ResourceNotFoundError:
-            # If file not found, try directory
-            try:
-                directory_client = file_system_client.get_directory_client(file_path)
-                properties = directory_client.get_directory_properties()
-                print(f"\n✅ Directory EXISTS!")
-                print(f"\n📊 Properties:")
-                print(f"   - Last Modified: {properties.last_modified}")
-                return {"status": "exists", "message": "Directory found in ADLS", "container": container_name, "path": file_path, "type": "directory"}
-            except ResourceNotFoundError:
-                raise
+            paths = directory_client.get_paths(recursive=True)
+            for path in paths:
+                if not path.is_directory:
+                    file_details = {
+                        'name': path.name,
+                        'full_path': path.name,
+                        'size': path.content_length,
+                        'last_modified': path.last_modified,
+                    }
+                    files.append(file_details)
 
-    except ResourceNotFoundError:
-        print(f"\n⚠️  Path NOT FOUND")
-        return {"status": "not_found", "message": "Path does not exist in ADLS"}
+            if not files:
+                print(f"⚠️  No files found in folder")
+                return []
+
+            # Sort by last_modified (newest first)
+            files.sort(key=lambda x: x['last_modified'], reverse=True)
+            print(f"✅ Found {len(files)} file(s)")
+            return files
+
+        except ResourceNotFoundError:
+            print(f"⚠️  Folder not found: {folder_path}")
+            return []
+
     except ClientAuthenticationError as e:
         error_message = str(e)
-        print(f"\n⚠️  Authentication Error")
-        print(f"\n❌ Error: {error_message}")
-        print(f"\n💡 Troubleshooting:")
-        print(f"   1. Verify credentials in .env:")
-        print(f"      - ADLS_TENANT_ID")
-        print(f"      - ADLS_CLIENT_ID")
-        print(f"      - ADLS_CLIENT_SECRET")
-        print(f"   2. Check if Service Principal is valid and not expired")
-        print(f"   3. Verify RBAC roles assigned to the Service Principal on storage account:")
-        print(f"      - 'Storage Blob Data Reader' (read-only)")
-        print(f"      - 'Storage Blob Data Contributor' (read/write)")
-        print(f"   4. Ensure Service Principal has access to the specific container")
-        return {"status": "error", "message": f"Authentication failed: {error_message}"}
+        print(f"\n❌ Authentication Error: {error_message}")
+        print(f"\n💡 Verify credentials in .env:")
+        print(f"   - ADLS_TENANT_ID")
+        print(f"   - ADLS_CLIENT_ID")
+        print(f"   - ADLS_CLIENT_SECRET")
+        return []
     except Exception as e:
         error_message = str(e)
         print(f"\n❌ Error: {error_message}")
-        print(f"\n💡 Troubleshooting:")
-        print(f"   1. Check if the path/container exists in the storage account")
-        print(f"   2. Verify Managed Identity has the correct RBAC role assignments")
-        print(f"   3. Ensure proper network connectivity to the storage account")
         import traceback
         traceback.print_exc()
-        return {"status": "error", "message": f"Error checking path: {error_message}"}
+        return []
 
 
 def main():
     """Main function"""
     print("\n" + "="*70)
-    print("🔷 ADLS FILE EXISTENCE CHECK (Service Principal)")
+    print("🔷 ADLS FILE LISTING AND STATUS (Service Principal)")
     print("="*70)
     print(f"\n🔑 Using Service Principal Authentication:")
     print(f"   Client ID: {APPLICATION_ID}")
     print(f"   Tenant ID: {ADLS_TENANT_ID}")
 
-    print("\n📖 Loading configuration from ConfigurationFile.csv...")
-    config = load_config("Aerodata")
+    print("\n📖 Loading configuration from .config...")
+    config = load_config_file()
 
     if not config:
         sys.exit(1)
 
     print("✅ Configuration loaded successfully!")
-    print(f"\n📋 Configuration Details:")
-    print(f"   Table Name: {config['table_name']}")
-    print(f"   Storage RG: {config['adls_storage_rg']}")
-    print(f"   Storage Name: {config['adls_storage_name']}")
-    print(f"   Container Name: {config['adls_container_name']}")
-    print(f"   Full Path: {config['adls_path']}")
+    print(f"\n📋 ADLS Configuration:")
+    print(f"   Storage Account: {config['adls_storage_name']}")
+    print(f"   Container: {config['adls_container_name']}")
+    print(f"   Resource Group: {config['adls_resource_group']}")
+    print(f"   Root Folder: {config['adls_root_folder']}")
 
-    print("\n\n🧪 TEST: Check if path exists using Service Principal")
-    result = check_file_exists(
+    # List all files in the root folder
+    files = list_files_in_folder(
         storage_account=config['adls_storage_name'],
         container_name=config['adls_container_name'],
-        file_path=config['adls_path']
+        folder_path=config['adls_root_folder']
     )
-    print(f"\n📌 Result: {result['status'].upper()}")
-    print(f"   {result['message']}")
+
+    if files:
+        print(f"\n📊 Files Found (sorted by most recent):")
+        print("=" * 70)
+        for i, file in enumerate(files, 1):
+            print(f"\n{i}. File: {file['name']}")
+            print(f"   Path: {file['full_path']}")
+            print(f"   Size: {file['size']:,} bytes")
+            print(f"   Last Modified: {file['last_modified']}")
+
+        # Show most recent file details
+        most_recent = files[0]
+        print(f"\n\n⭐ MOST RECENT FILE:")
+        print("=" * 70)
+        print(f"Name: {most_recent['name']}")
+        print(f"Full Path: {most_recent['full_path']}")
+        print(f"Size: {most_recent['size']:,} bytes ({most_recent['size'] / (1024*1024):.2f} MB)")
+        print(f"Last Modified: {most_recent['last_modified']}")
 
     print("\n" + "="*70)
-    print("✅ Test completed!")
+    print("✅ Operation completed!")
     print("="*70)
 
 
