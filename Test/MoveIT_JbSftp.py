@@ -61,11 +61,13 @@ class MOVEitTransferAPI:
     def __init__(self):
         env_vars = read_env()
         self.server = env_vars.get('TRANSFER_SERVER')
-        self.access_token = env_vars.get('MOVEIT_ACCESS_TOKEN')
+        self.username = env_vars.get('TUSERNAME')
+        self.password = env_vars.get('TPASSWORD')
+        self.access_token = None
         self.root_folder = read_config()
 
-        if not all([self.server, self.access_token]):
-            raise ValueError("Missing MOVEit Transfer credentials (TRANSFER_SERVER, MOVEIT_ACCESS_TOKEN) in .env file")
+        if not all([self.server, self.username, self.password]):
+            raise ValueError("Missing MOVEit credentials (TRANSFER_SERVER, TUSERNAME, TPASSWORD) in .env file")
 
         self.server = self.server.strip().rstrip('/')
         if not self.server.startswith(('http://', 'https://')):
@@ -98,13 +100,31 @@ class MOVEitTransferAPI:
             raise Exception("curl returned no HTTP status")
         return CurlResponse(int(status), body)
 
-    def verify_token(self) -> bool:
-        """Verify the access token is valid"""
-        if not self.access_token:
-            print("✗ No access token provided in MOVEIT_ACCESS_TOKEN")
+    def get_access_token(self) -> bool:
+        """Generate access token using credentials"""
+        try:
+            token_url = f"{self.base_url}/token"
+            payload = {
+                "grant_type": "password",
+                "username": self.username,
+                "password": self.password
+            }
+
+            response = self._request("POST", token_url, data=payload)
+
+            if response.status_code == 200:
+                token_data = response.json()
+                self.access_token = token_data.get('access_token')
+                print(f"✓ Access token generated successfully")
+                return True
+            else:
+                print(f"✗ Failed to get access token: {response.status_code}")
+                print(f"  Response: {response.text}")
+                return False
+
+        except Exception as e:
+            print(f"✗ Error generating access token: {str(e)}")
             return False
-        print(f"✓ Access token loaded from .env")
-        return True
 
     def get_files_in_folder(self, folder_path: str = None, page: int = 1, per_page: int = 100) -> Optional[Dict[str, Any]]:
         """Get list of files in specific folder"""
@@ -168,10 +188,10 @@ def main():
         print(f"Connected to MOVEit Transfer Server: {api.server}")
         print(f"Root Folder: {api.root_folder}\n")
 
-        # Step 1: Verify token
-        print("Step 1: Verifying access token...")
-        if not api.verify_token():
-            print("Failed to verify token. Exiting.")
+        # Step 1: Generate access token
+        print("Step 1: Generating access token...")
+        if not api.get_access_token():
+            print("Failed to generate token. Exiting.")
             return
 
         print()
