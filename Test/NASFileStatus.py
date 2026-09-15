@@ -1,12 +1,17 @@
 import os
 from datetime import datetime
-from configparser import ConfigParser
 
 
 def read_config():
-    config = ConfigParser()
-    config.read('.config')
-    return config.get('DEFAULT', 'NAS_Root_Folder').strip()
+    config = {}
+    with open('.config', 'r') as config_file:
+        for line in config_file:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                config[key.strip()] = value.strip()
+
+    return config.get('NAS_Root_Folder')
 
 
 def get_nas_status(folder_path):
