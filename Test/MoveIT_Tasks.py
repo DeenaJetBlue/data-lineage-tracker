@@ -2,8 +2,25 @@ import json
 import requests
 from pathlib import Path
 import urllib3
+import ssl
+from requests.adapters import HTTPAdapter
+from urllib3.util.ssl_ import create_urllib3_context
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+class SSLAdapter(HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = create_urllib3_context(ssl_version=ssl.PROTOCOL_TLSv1_2)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+def get_session():
+    """Create requests session with custom SSL handling"""
+    session = requests.Session()
+    session.mount('https://', SSLAdapter())
+    return session
 
 def read_env():
     """Read .env file to get configuration"""
@@ -66,14 +83,14 @@ def get_access_token():
     }
 
     try:
-        response = requests.post(
+        session = get_session()
+        response = session.post(
             token_url,
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded"
             },
             data=request_data,
-            verify=False,
             timeout=60,
             allow_redirects=True
         )
@@ -114,11 +131,11 @@ def get_task_details(task_id):
     }
 
     try:
-        response = requests.get(
+        session = get_session()
+        response = session.get(
             url,
             headers=headers,
             params=params,
-            verify=False,
             timeout=60,
             allow_redirects=True
         )
