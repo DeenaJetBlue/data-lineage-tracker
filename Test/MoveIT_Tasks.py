@@ -2,37 +2,8 @@ import json
 import requests
 from pathlib import Path
 import urllib3
-import ssl
-from requests.adapters import HTTPAdapter
-from urllib3.util.ssl_ import create_urllib3_context
-from requests.packages.urllib3.util.retry import Retry
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-class SSLAdapter(HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
-        ctx = create_urllib3_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        ctx.options |= 0x4  # OP_LEGACY_SERVER_CONNECT for compatibility
-        kwargs['ssl_context'] = ctx
-        return super().init_poolmanager(*args, **kwargs)
-
-def get_session():
-    """Create requests session with custom SSL handling and retries"""
-    session = requests.Session()
-
-    retry_strategy = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["HEAD", "GET", "OPTIONS", "POST"]
-    )
-
-    adapter = SSLAdapter(max_retries=retry_strategy)
-    session.mount('https://', adapter)
-    session.mount('http://', adapter)
-    return session
 
 def read_env():
     """Read .env file to get configuration"""
@@ -95,14 +66,14 @@ def get_access_token():
     }
 
     try:
-        session = get_session()
-        response = session.post(
+        response = requests.post(
             token_url,
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/x-www-form-urlencoded"
             },
             data=request_data,
+            verify=False,
             timeout=60,
             allow_redirects=True
         )
@@ -112,6 +83,7 @@ def get_access_token():
             print(f"✓ Access token generated successfully")
             return token
         else:
+            print(response.text)
             print(f"✗ Failed to get access token: {response.status_code}")
             return None
 
@@ -143,11 +115,11 @@ def get_task_details(task_id):
     }
 
     try:
-        session = get_session()
-        response = session.get(
+        response = requests.get(
             url,
             headers=headers,
             params=params,
+            verify=False,
             timeout=60,
             allow_redirects=True
         )
