@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>File Lifecycle · Data Lineage Tracker</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script type="module" src="assets/index.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html">
+      <img src="assets/favicon.svg" alt="">
+      <span>Data Lineage Tracker <span class="brand-sub">· File Lifecycle</span></span>
+    </a>
+    <div class="topbar-actions">
+      <button class="icon-btn theme-toggle" type="button" aria-label="Switch colour theme"></button>
+    </div>
+  </header>
+  <div class="demo-banner" role="status" hidden></div>
+
+  <main class="page" id="main">
+    <p class="eyebrow">File lifecycle</p>
+    <h1>Follow a table's files end to end</h1>
+    <p class="lead">
+      Pick a table to see where its files land, which jobs process them, and whether HVR replication is running.
+      Each table's systems come from the config table.
+    </p>
+
+    <section class="picker" aria-label="Choose a table">
+      <label for="table-select">Table</label>
+      <div class="picker-row">
+        <span class="select-wrap"><select id="table-select" disabled><option>Loading…</option></select></span>
+        <a id="track-link" class="btn btn-primary" href="lifecycle.html" aria-disabled="true">
+          Track lifecycle
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10h11"/><path d="M11 5.5l4.5 4.5-4.5 4.5"/></svg>
+        </a>
+      </div>
+      <p class="picker-note" id="table-count"></p>
+    </section>
+
+    <section aria-labelledby="config-title">
+      <div class="section-head">
+        <h2 id="config-title">Config table</h2>
+        <p id="config-sub"></p>
+      </div>
+      <div id="config-preview" aria-live="polite"></div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,17 @@
+Table_Name,Class,Source,Parameter,Value
+DemoTable,Landing Space,ADLS,Resource_Group,jb-rg-eastus2-analytics-prd
+DemoTable,Landing Space,ADLS,Storage_Account_Name,jbsaeastus2analyticsprd
+DemoTable,Landing Space,ADLS,Container_Name,aerodata-cont
+DemoTable,Landing Space,ADLS,Root_Folder,aerodata/2026/09/08/
+DemoTable,Landing Space,NAS,Root_Folder,\\shares.jetblue.com\Apps\snowflake\prd\adhoc_sabre-osp-cont\sabre-osp-cont\promotion\2024
+DemoTable,Landing Space,JbSftp,Root_Folder,/Home/Qualtrics/QualtricsSend/
+DemoTable,Process,DBT,Account_ID,1644
+DemoTable,Process,DBT,Job_ID,70437463784804
+DemoTable,Process,ADF,Resource_Group,jb-rg-analytics-prd
+DemoTable,Process,ADF,Factory_Name,jb-analytics-eastus-prd-df
+DemoTable,Process,ADF,Pipeline_Name,base__load_files_to_snowflake_sp_audit
+DemoTable,Process,ADF,Lookback_Hours,24
+DemoTable,Process,MoveIT_Tasks,Task_ID,243149144
+DemoTable,Process,Fivetran,Connection_ID,meanest_uncork
+DemoTable,Process,Fivetran,Lookback_Hours,3
+DemoTable,HVR Jobs,HVR,Job_Filter,*

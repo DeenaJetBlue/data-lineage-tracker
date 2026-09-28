@@ -1,0 +1,275 @@
+{
+  "_about": "Sample responses for `python run.py --demo`: captured from the Test scripts on 2026-09-28, with extra history rows and all HVR jobs illustrative.",
+  "adls": {
+    "total_files": 1433,
+    "recent_files": [
+      {
+        "name": "JBU_2424_KMCO_KDCA_552_20260908_20260908223431.xml.gz",
+        "full_path": "aerodata/2026/09/08/23/11/JBU_2424_KMCO_KDCA_552_20260908_20260908223431.xml.gz",
+        "size": 3404,
+        "last_modified": "2026-09-08T23:20:47.000+00:00"
+      },
+      {
+        "name": "JBU_1188_KJFK_KBOS_231_20260908_20260908222905.xml.gz",
+        "full_path": "aerodata/2026/09/08/23/11/JBU_1188_KJFK_KBOS_231_20260908_20260908222905.xml.gz",
+        "size": 3198,
+        "last_modified": "2026-09-08T23:18:12.000+00:00"
+      },
+      {
+        "name": "JBU_0617_KFLL_KLGA_590_20260908_20260908221547.xml.gz",
+        "full_path": "aerodata/2026/09/08/23/05/JBU_0617_KFLL_KLGA_590_20260908_20260908221547.xml.gz",
+        "size": 3551,
+        "last_modified": "2026-09-08T23:09:40.000+00:00"
+      }
+    ]
+  },
+  "nas": {
+    "total_files": 366,
+    "recent_files": [
+      {
+        "name": "output9_promotion_20241016063502.csv.gz",
+        "path": "\\\\shares.jetblue.com\\Apps\\snowflake\\prd\\adhoc_sabre-osp-cont\\sabre-osp-cont\\promotion\\2024\\10\\output9_promotion_20241016063502.csv.gz",
+        "size": null,
+        "modified": "2026-08-13T14:04:30"
+      },
+      {
+        "name": "output8_promotion_20241016063455.csv.gz",
+        "path": "\\\\shares.jetblue.com\\Apps\\snowflake\\prd\\adhoc_sabre-osp-cont\\sabre-osp-cont\\promotion\\2024\\10\\output8_promotion_20241016063455.csv.gz",
+        "size": null,
+        "modified": "2026-08-13T14:04:28"
+      }
+    ]
+  },
+  "jbsftp": {
+    "items": [
+      {
+        "id": "382231375",
+        "name": "CERT_ATPLoadCompleteNotification_InternationalHourly_260928_0500.txt",
+        "path": "/Home/Qualtrics/QualtricsSend/CERT_ATPLoadCompleteNotification_InternationalHourly_260928_0500.txt",
+        "size": 503
+      },
+      {
+        "id": "382228904",
+        "name": "CERT_ATPLoadCompleteNotification_InternationalHourly_260928_0400.txt",
+        "path": "/Home/Qualtrics/QualtricsSend/CERT_ATPLoadCompleteNotification_InternationalHourly_260928_0400.txt",
+        "size": 498
+      },
+      {
+        "id": "382226117",
+        "name": "CERT_ATPLoadCompleteNotification_InternationalHourly_260928_0300.txt",
+        "path": "/Home/Qualtrics/QualtricsSend/CERT_ATPLoadCompleteNotification_InternationalHourly_260928_0300.txt",
+        "size": 501
+      }
+    ],
+    "paging": {
+      "page": 1,
+      "perPage": 100,
+      "totalItems": 100,
+      "totalPages": 1
+    }
+  },
+  "dbt": {
+    "run": {
+      "id": 70437520448113,
+      "account_id": 1644,
+      "environment_id": 21843,
+      "project_id": 2915,
+      "job_definition_id": 70437463784804,
+      "status": 10,
+      "status_humanized": "Success",
+      "status_message": "",
+      "git_branch": "master",
+      "git_sha": "0b7c09ac4d3e77ff97b04ea645ec9e1119753ad9",
+      "created_at": "2026-09-25 15:30:58.356445+00:00",
+      "started_at": "2026-09-25 15:31:00.241380+00:00",
+      "finished_at": "2026-09-25 15:54:01.771106+00:00",
+      "duration_humanized": "23 minutes, 3 seconds",
+      "run_duration_humanized": "23 minutes, 1 second",
+      "in_progress": false,
+      "is_success": true,
+      "trigger": {
+        "cause": "Kicked off from UI",
+        "cause_humanized": "Kicked off from UI",
+        "cause_category": "ui"
+      },
+      "job": {
+        "id": 70437463784804,
+        "name": "Triggered ADF - fuel_master",
+        "execute_steps": [
+          "dbt run -s tag:invoices_bill_of_lading-star+ --exclude config.materialized:view",
+          "dbt run -s tag:fuel_invoices-star+ --exclude config.materialized:view",
+          "dbt run -s tag:fuel_operations-star+ --exclude config.materialized:view",
+          "dbt run -s tag:fuel_reference-star+ --exclude config.materialized:view",
+          "dbt run -s tag:fuel_pricing-star+ --exclude config.materialized:view"
+        ],
+        "settings": {
+          "threads": 4,
+          "target_name": "prd"
+        },
+        "schedule": {
+          "cron": "5 */12 * * 0,1,2,3,4,5,6",
+          "date": "interval_cron",
+          "time": "every_hour"
+        }
+      }
+    }
+  },
+  "adf": {
+    "lookback_hours": 24,
+    "runs_in_window": 1,
+    "run": {
+      "runId": "276a1fc3-3760-4898-8787-2b4d59d85fb5",
+      "pipelineName": "base__load_files_to_snowflake_sp_audit",
+      "status": "Succeeded",
+      "runStart": "2026-09-28T09:04:14.915+00:00",
+      "runEnd": "2026-09-28T09:05:19.552+00:00",
+      "durationInMs": 64636,
+      "lastUpdated": "2026-09-28T09:05:19.552+00:00",
+      "message": "",
+      "parameters": {
+        "source_folder_name": "cms-cont/htrunk",
+        "blob_path": "2026/09/28",
+        "list_of_files": "{\n  \"PipelineName\": \"base__load_data_from_informix_to_snowflake_htables\",\n  \"PipelineRunId\": \"b4da7278-a85e-420c-94f8-5748d546c2ea\",\n  \"JobId\": \"b4da7278-a85e-420c-94f8-5748d546c2ea\",\n  \"ActivityRunId\": \"611c7e87-e203-4be4-8348-386c33a38ce1\",\n  \"ExecutionStartTime\": \"2026-09-28T09:04:13.3928405Z\",\n  \"ExecutionEndTime\": \"2026-09-28T09:04:13.9003878Z\",\n  \"Status\": \"Succeeded\",\n  \"Error\": null,\n  \"Output\": {\n    \"ItemsCount\": 7,\n    \"FilteredItemsCount\": 1,\n    \"Value\": [\n      {\n        \"name\": \"htrunk20260928.csv\",\n        \"type\": \"File\"\n      }\n    ]\n  },\n  \"ExecutionDetails\": null,\n  \"StatusCode\": 200,\n  \"ExecutionStatus\": \"Pass\",\n  \"Duration\": \"00:00:00.5075473\",\n  \"RecoveryStatus\": \"None\",\n  \"ActivityType\": \"Filter\"\n}",
+        "utc_datetime": "09/28/2026 09:00:34",
+        "container_name": "cms-cont",
+        "snowflake_copy_command": "call avaya_cms.sp__avaya_cms__htrunk('c874f195-2d75-401d-8ee3-c1f210271ae4');",
+        "snowflake_audit_schema_name": "avaya_cms",
+        "snowflake_audit_table_name": "htrunk",
+        "file_folder": "htrunk",
+        "staging_folder": "_staging"
+      },
+      "invokedBy": {
+        "name": "888bf1fe-b30b-4d18-b163-cc56d765dac5",
+        "id": "888bf1fe-b30b-4d18-b163-cc56d765dac5"
+      }
+    },
+    "recent_runs": [
+      {
+        "runId": "276a1fc3-3760-4898-8787-2b4d59d85fb5",
+        "status": "Succeeded",
+        "runStart": "2026-09-28T09:04:14.915+00:00",
+        "runEnd": "2026-09-28T09:05:19.552+00:00",
+        "durationInMs": 64636
+      }
+    ]
+  },
+  "moveit_tasks": {
+    "runs": [
+      {
+        "id": 34422744,
+        "taskId": 243149144,
+        "startTime": "2026-09-28T05:00:05.500",
+        "exitStatus": "Success"
+      },
+      {
+        "id": 34401187,
+        "taskId": 243149144,
+        "startTime": "2026-09-27T05:00:04.870",
+        "exitStatus": "Success"
+      },
+      {
+        "id": 34379522,
+        "taskId": 243149144,
+        "startTime": "2026-09-26T05:00:06.120",
+        "exitStatus": "Success"
+      }
+    ]
+  },
+  "fivetran": {
+    "lookback_hours": 3,
+    "syncs": [
+      {
+        "sync_id": "fb29edad-7743-419f-9b60-5e0c36e27424",
+        "status": "COMPLETED",
+        "start": "2026-09-28T06:48:42.985Z",
+        "end": "2026-09-28T06:49:28.405Z",
+        "stages": {
+          "extract": {
+            "volume": 1752579.0
+          },
+          "process": {
+            "volume": 399071.0
+          },
+          "load": {
+            "volume": 360848.0
+          }
+        }
+      },
+      {
+        "sync_id": "7924554a-f361-4eb4-8b56-9bf591c64691",
+        "status": "COMPLETED",
+        "start": "2026-09-28T07:48:42.845Z",
+        "end": "2026-09-28T07:49:28.521Z",
+        "stages": {
+          "extract": {
+            "volume": 1830155.0
+          },
+          "process": {
+            "volume": 398413.0
+          },
+          "load": {
+            "volume": 361172.0
+          }
+        }
+      },
+      {
+        "sync_id": "783c1d9e-edf1-4888-b30e-647aa379fee5",
+        "status": "COMPLETED",
+        "start": "2026-09-28T08:48:42.898Z",
+        "end": "2026-09-28T08:49:21.664Z",
+        "stages": {
+          "extract": {
+            "volume": 1811986.0
+          },
+          "process": {
+            "volume": 398623.0
+          },
+          "load": {
+            "volume": 360735.0
+          }
+        }
+      }
+    ]
+  },
+  "hvr": {
+    "hub": "hvrhub",
+    "jobs": [
+      {
+        "name": "sample_orders-cap-source",
+        "state": "RUNNING",
+        "channel": "sample_orders",
+        "loc": "source"
+      },
+      {
+        "name": "sample_orders-integ-snowflake",
+        "state": "RUNNING",
+        "channel": "sample_orders",
+        "loc": "snowflake"
+      },
+      {
+        "name": "sample_flights-cap-source",
+        "state": "RUNNING",
+        "channel": "sample_flights",
+        "loc": "source"
+      },
+      {
+        "name": "sample_flights-integ-snowflake",
+        "state": "RUNNING",
+        "channel": "sample_flights",
+        "loc": "snowflake"
+      },
+      {
+        "name": "sample_crew-cap-source",
+        "state": "RUNNING",
+        "channel": "sample_crew",
+        "loc": "source"
+      },
+      {
+        "name": "sample_crew-integ-snowflake",
+        "state": "SUSPEND",
+        "channel": "sample_crew",
+        "loc": "snowflake"
+      }
+    ]
+  }
+}
