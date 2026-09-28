@@ -1,8 +1,25 @@
-import requests
+import json
+import subprocess
 from pathlib import Path
-import urllib3
+from urllib.parse import urlencode
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Python requests gets its connection reset by jbsftp on AVD; Windows curl.exe works.
+def curl(method, url, headers=None, data=None):
+    """Run curl.exe and return (status_code, body)"""
+    command = ["curl.exe", "--silent", "--show-error", "--insecure", "--max-time", "60",
+               "--request", method, url, "--write-out", "\n%{http_code}"]
+    for name, value in (headers or {}).items():
+        command += ["--header", f"{name}: {value}"]
+    for name, value in (data or {}).items():
+        command += ["--data-urlencode", f"{name}={value}"]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode:
+        raise Exception(result.stderr.strip())
+
+    body, _, status = result.stdout.rpartition("\n")
+    return int(status), body
 
 
 def read_env():
@@ -65,23 +82,14 @@ def get_access_token():
     }
 
     try:
-        response = requests.post(
-            token_url,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            data=request_data,
-            verify=False,
-            timeout=60
-        )
+        status, body = curl("POST", token_url, data=request_data)
 
-        if response.status_code == 200:
+        if status == 200:
             print(f"✓ Access token generated successfully")
-            return response.json().get('access_token')
+            return json.loads(body).get('access_token')
         else:
-            print(f"✗ Failed to get access token: {response.status_code}")
-            print(f"  Response: {response.text}")
+            print(f"✗ Failed to get access token: {status}")
+            print(f"  Response: {body}")
             return None
 
     except Exception as e:
@@ -108,20 +116,14 @@ def get_files_in_folder(access_token, folder_path):
     }
 
     try:
-        response = requests.get(
-            f"{server}/api/v1/files",
-            headers=headers,
-            params=params,
-            verify=False,
-            timeout=60
-        )
+        status, body = curl("GET", f"{server}/api/v1/files?{urlencode(params)}", headers=headers)
 
-        if response.status_code == 200:
+        if status == 200:
             print(f"✓ Retrieved files from {folder_path} successfully")
-            return response.json()
+            return json.loads(body)
         else:
-            print(f"✗ Failed to retrieve files: {response.status_code}")
-            print(f"  Response: {response.text}")
+            print(f"✗ Failed to retrieve files: {status}")
+            print(f"  Response: {body}")
             return None
 
     except Exception as e:
