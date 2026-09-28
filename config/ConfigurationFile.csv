@@ -4,7 +4,7 @@ DemoTable,Landing Space,ADLS,Storage_Account_Name,jbsaeastus2analyticsprd
 DemoTable,Landing Space,ADLS,Container_Name,aerodata-cont
 DemoTable,Landing Space,ADLS,Root_Folder,aerodata/2026/09/08/
 DemoTable,Landing Space,NAS,Root_Folder,\\shares.jetblue.com\Apps\snowflake\prd\adhoc_sabre-osp-cont\sabre-osp-cont\promotion\2024
-DemoTable,Landing Space,JbSftp,Root_Folder,/Home/Qualtrics/QualtricsSend/
+DemoTable,Landing Space,JbSftp,Root_Folder,/Home/SAP_Success_Factors/
 DemoTable,Process,DBT,Account_ID,1644
 DemoTable,Process,DBT,Job_ID,70437463784804
 DemoTable,Process,ADF,Resource_Group,jb-rg-analytics-prd
