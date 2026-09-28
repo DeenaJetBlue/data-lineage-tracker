@@ -257,7 +257,7 @@ Each collector in `backend/sources/` makes the same calls, with the same authent
 |---|---|---|---|
 | ADLS | `sources/adls.py` | `Test/AdlsFileStatus.py` | Skips folder entries (on hierarchical-namespace accounts they look like zero-byte files and could pose as the latest file). Adds total size and the 10 newest files. |
 | NAS | `sources/nas.py` | `Test/NASFileStatus.py` | Adds file sizes and the 10 newest files. Times are shown in your local time. |
-| JbSftp | `sources/jbsftp.py` | `Test/MoveIT_JbSftp.py` | Takes the count from the API's paging total when present. The script printed 100, which is its page size, so the real total may be higher. Looks for the upload time under several spellings; the script's `uploadstamp` key came back empty. Hides files whose path is outside `Root_Folder`, in case the API ignores `folderPath`. |
+| JbSftp | `sources/jbsftp.py` | `Test/MoveIT_JbSftp.py` | Looks for the upload time under several spellings. Hides any file whose path is outside `Root_Folder`. Adds the 10 newest files. |
 | DBT | `sources/dbt.py` | `Test/DBTJobsRuns.py` | Accepts a `Job_ID` with a trailing `#comment`. Strips the (very large) step logs. |
 | Azure Data Factory | `sources/adf.py` | `Test/AdfPipelineRuns.py` | Orders runs by start time rather than end time, so a run still in progress counts as the latest; the script would show the previous finished run. The lookback window is configurable. Lists file names found in JSON parameters such as `list_of_files`, plus the 10 most recent runs. |
 | MOVEit Tasks | `sources/moveit_tasks.py` | `Test/MoveIT_Tasks.py` | Shows the 10 most recent runs, not only the latest. |

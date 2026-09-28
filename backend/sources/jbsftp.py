@@ -66,23 +66,36 @@ def fetch(params, env):
         raise SourceError(f"Access token request failed (HTTP {status})",
                           hint="Check TUSERNAME / TPASSWORD in .env.")
     token = json.loads(body).get("access_token")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
+    # /api/v1/files ignores folderPath and lists every folder the user can see, so list the folder itself.
+    folder_id = find_folder_id(server, headers, params["Root_Folder"])
     query = urlencode({
         "page": 1,
         "perPage": 100,
         "sortField": "uploadstamp",
         "sortDirection": "desc",
-        "folderPath": params["Root_Folder"],
     })
-    status, body = curl("GET", f"{server}/api/v1/files?{query}", headers={
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    })
+    status, body = curl("GET", f"{server}/api/v1/folders/{folder_id}/files?{query}", headers=headers)
     if status != 200:
         raise SourceError(f"File listing failed (HTTP {status}): {body[:300]}")
 
     data = json.loads(body)
     return {"items": data.get("items") or [], "paging": data.get("paging"), "totalCount": data.get("totalCount")}
+
+
+def find_folder_id(server, headers, folder):
+    """Look the folder up by its path, then by its name, and return the ID of the exact path match."""
+    path = "/" + folder.replace("\\", "/").strip("/")
+    for key, value in (("path", path), ("name", path.rsplit("/", 1)[-1])):
+        status, body = curl("GET", f"{server}/api/v1/folders?{urlencode({key: value, 'perPage': 100})}", headers=headers)
+        if status != 200:
+            raise SourceError(f"Folder lookup failed (HTTP {status}): {body[:300]}")
+        for item in json.loads(body).get("items") or []:
+            if _normalise(item.get("path")) == _normalise(folder):
+                return item["id"]
+    raise SourceError(f"Folder {folder} was not found on the MOVEit server",
+                      hint="Root_Folder must be the folder's full MOVEit path, and TUSERNAME must have access to it.")
 
 
 def _normalise(path):

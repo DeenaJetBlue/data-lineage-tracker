@@ -97,6 +97,25 @@ class PayloadShapeTest(unittest.TestCase):
             raw = moveit_tasks.fetch({"Task_ID": "1"}, env)
         self.assertEqual(moveit_tasks.summarize(raw, {"Task_ID": "1"})["status"], WARNING)
 
+    def test_jbsftp_lists_the_folder_by_id(self):
+        # /api/v1/files ignores folderPath, so the folder is looked up and listed by its ID
+        folders = {"items": [{"id": "9", "path": "/Home/Qualtrics/QualtricsSendOld"},
+                             {"id": "7", "path": "/Home/Qualtrics/QualtricsSend"}]}
+        replies = [(200, '{"access_token": "t"}'), (200, json.dumps(folders)), (200, json.dumps(sample("jbsftp")))]
+        env = {"TRANSFER_SERVER": "srv", "TUSERNAME": "u", "TPASSWORD": "p"}
+        with mock.patch.object(jbsftp, "curl", side_effect=replies) as curl:
+            raw = jbsftp.fetch(DEMO.sources["jbsftp"], env)
+        self.assertIn("/api/v1/folders?path=%2FHome%2FQualtrics%2FQualtricsSend&", curl.call_args_list[1].args[1])
+        self.assertIn("/api/v1/folders/7/files?", curl.call_args_list[2].args[1])
+        self.assertEqual(len(raw["items"]), 3)
+
+    def test_jbsftp_unknown_folder_is_an_error(self):
+        replies = [(200, '{"access_token": "t"}'), (200, '{"items": []}'), (200, '{"items": []}')]
+        env = {"TRANSFER_SERVER": "srv", "TUSERNAME": "u", "TPASSWORD": "p"}
+        with mock.patch.object(jbsftp, "curl", side_effect=replies), \
+                self.assertRaisesRegex(jbsftp.SourceError, "not found"):
+            jbsftp.fetch({"Root_Folder": "/Home/Nope/"}, env)
+
     def test_fivetran_null_data_means_no_syncs(self):
         response = mock.Mock(status_code=200, json=lambda: {"data": None})
         env = {"FIVETRAN_API_KEY": "k", "FIVETRAN_API_SECRET": "s"}

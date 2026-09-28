@@ -97,6 +97,24 @@ def get_access_token():
         return None
 
 
+def find_folder_id(server, headers, folder_path):
+    """Find the folder's ID by its path (then by its name): /api/v1/files ignores folderPath"""
+    path = "/" + folder_path.replace("\\", "/").strip("/")
+    for key, value in (("path", path), ("name", path.rsplit("/", 1)[-1])):
+        status, body = curl("GET", f"{server}/api/v1/folders?{urlencode({key: value, 'perPage': 100})}", headers=headers)
+        if status != 200:
+            print(f"✗ Failed to look up folder: {status}")
+            print(f"  Response: {body}")
+            return None
+        for folder in json.loads(body).get('items', []):
+            if (folder.get('path') or '').strip('/').lower() == path.strip('/').lower():
+                print(f"✓ Found folder {folder['path']} (ID {folder['id']})")
+                return folder['id']
+
+    print(f"✗ Folder {folder_path} not found")
+    return None
+
+
 def get_files_in_folder(access_token, folder_path):
     """Get files in a folder, sorted by most recent upload first"""
     server = TRANSFER_SERVER.strip().rstrip('/')
@@ -111,12 +129,15 @@ def get_files_in_folder(access_token, folder_path):
         "page": 1,
         "perPage": 100,
         "sortField": "uploadstamp",
-        "sortDirection": "desc",
-        "folderPath": folder_path
+        "sortDirection": "desc"
     }
 
     try:
-        status, body = curl("GET", f"{server}/api/v1/files?{urlencode(params)}", headers=headers)
+        folder_id = find_folder_id(server, headers, folder_path)
+        if not folder_id:
+            return None
+
+        status, body = curl("GET", f"{server}/api/v1/folders/{folder_id}/files?{urlencode(params)}", headers=headers)
 
         if status == 200:
             print(f"✓ Retrieved files from {folder_path} successfully")
@@ -159,7 +180,7 @@ def main():
             return
 
         files_list = files_data.get('items', [])
-        total_count = files_data.get('totalCount', len(files_list))
+        total_count = files_data.get('paging', {}).get('totalItems', len(files_list))
         print(f"\n📊 Total files in folder: {total_count}")
 
         if not files_list:
@@ -169,8 +190,9 @@ def main():
         latest = files_list[0]
         print("\n📄 Most Recent File Details:")
         print(f"  Name: {latest.get('name', 'N/A')}")
+        print(f"  Path: {latest.get('path', 'N/A')}")
         print(f"  Size: {format_size(latest.get('size', 0))}")
-        print(f"  Upload Time: {latest.get('uploadstamp', 'N/A')}")
+        print(f"  Upload Time: {latest.get('uploadStamp', 'N/A')}")
         print(f"  Modified Time: {latest.get('modificationtime', 'N/A')}")
         print(f"  ID: {latest.get('id', 'N/A')}")
 
